@@ -7,6 +7,7 @@ import { WebView } from 'react-native-webview';
 
 import campus from '../assets/geo/campus.json';
 import { customBuildings } from '../components/buildings';
+import MapNavbar from '../components/MapNavbar';
 import { htmlPage } from '../lib/htmlPage';
 
 type Center = { lng: number; lat: number };
@@ -43,6 +44,18 @@ export default function MapScreen() {
   const campusCenter = useMemo(() => getGeojsonCenter(campus), []);
   const [center, setCenter] = useState<Center | null>(null);
   const webRef = useRef<WebViewType>(null);
+
+  // ====== Config inicial (sólo para el primer render del mapa) ======
+  const BASEMAP: Basemap = 'voyager';
+  const PANORAMICMODE_INIT: PanMode = 'locked';
+  const INITIAL_VIEW_INIT: InitialView = 'topdown';
+  const SHOW_OSM_INIT = false;
+  const ARROW_COLOR_INIT = '#2563eb';
+
+  // ====== Estado controlado por la navbar (cambios en vivo) ======
+  const [panMode, setPanMode] = useState<PanMode>(PANORAMICMODE_INIT);
+  const [initialView, setInitialView] = useState<InitialView>(INITIAL_VIEW_INIT);
+  const [arrowColor, setArrowColor] = useState<string>(ARROW_COLOR_INIT);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +108,47 @@ export default function MapScreen() {
     return () => { cancelled = true; sub?.remove(); };
   }, [campusCenter]);
 
+  // ====== ¡Congelamos el HTML inicial del WebView! ======
+  // Importante: NO dependas de arrowColor, panMode o initialView (estado vivo) aquí.
+  const initialHtml = useMemo(() => {
+    if (!center) return '<html></html>';
+    return htmlPage(
+      center,
+      campus,
+      {
+        bufferM: 250,
+        basemap: BASEMAP,
+        panMode: PANORAMICMODE_INIT, // sólo valor inicial
+        softExtraM: 150,
+        maskOutside: false,
+        initialView: INITIAL_VIEW_INIT, // sólo valor inicial
+        obliquePitch: 60,
+        showOsmBuildings: SHOW_OSM_INIT,
+        arrowColor: ARROW_COLOR_INIT,   // sólo valor inicial
+      },
+      customBuildings
+    );
+  }, [center]); // <- sólo cambia cuando tengamos el centro por primera vez
+
+  // También memorizamos el objeto source para no cambiar su referencia
+  const webSource = useMemo(() => ({ html: initialHtml }), [initialHtml]);
+
+  // ====== Handlers Navbar → inyección JS (sin recargar WebView) ======
+  const handleChangePanMode = (mode: PanMode) => {
+    setPanMode(mode);
+    webRef.current?.injectJavaScript(`window.setPanMode && window.setPanMode(${JSON.stringify(mode)}); true;`);
+  };
+
+  const handleChangeInitialView = (view: InitialView) => {
+    setInitialView(view);
+    webRef.current?.injectJavaScript(`window.setInitialView && window.setInitialView(${JSON.stringify(view)}); true;`);
+  };
+
+  const handleChangeArrowColor = (hex: string) => {
+    setArrowColor(hex);
+    webRef.current?.injectJavaScript(`window.setArrowColor && window.setArrowColor(${JSON.stringify(hex)}); true;`);
+  };
+
   if (!center) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -103,43 +157,28 @@ export default function MapScreen() {
     );
   }
 
-  // ====== Toggles fáciles ======
-  const BASEMAP: Basemap = 'voyager';      // 'positron' | 'voyager' | 'dark' | 'osm'
-  const PANORAMICMODE: PanMode = 'locked';   // 'free' | 'locked' | 'soft'
-  const INITIAL_VIEW: InitialView = 'topdown'; // 'topdown' | 'oblique'
-  const SHOW_OSM = false;                  // pintar edificios OSM dentro del campus
-
-  // === Color de la flecha (configurable desde aquí) ===
-  const ARROW_COLOR = '#2563eb';           // cambia a tu gusto (ej. '#00A884')
-
   return (
-    <WebView
-      ref={webRef}
-      style={{ flex: 1 }}
-      originWhitelist={['*']}
-      setSupportMultipleWindows={false}
-      javaScriptEnabled
-      domStorageEnabled
-      allowFileAccess
-      allowUniversalAccessFromFileURLs
-      source={{
-        html: htmlPage(
-          center,
-          campus,
-          {
-            bufferM: 250,
-            basemap: BASEMAP,
-            panMode: PANORAMICMODE,
-            softExtraM: 150,        // usado solo si panMode === 'soft'
-            maskOutside: false,
-            initialView: INITIAL_VIEW,
-            obliquePitch: 60,
-            showOsmBuildings: SHOW_OSM,
-            arrowColor: ARROW_COLOR,
-          } as any,                  // cast temporal hasta actualizar tipos en htmlPage.ts
-          customBuildings
-        )
-      }}
-    />
+    <>
+      <WebView
+        ref={webRef}
+        style={{ flex: 1 }}
+        originWhitelist={['*']}
+        setSupportMultipleWindows={false}
+        javaScriptEnabled
+        domStorageEnabled
+        allowFileAccess
+        allowUniversalAccessFromFileURLs
+        source={webSource}   // <- estable; no cambia al tocar navbar
+      />
+
+      <MapNavbar
+        panMode={panMode}
+        onChangePanMode={handleChangePanMode}
+        initialView={initialView}
+        onChangeInitialView={handleChangeInitialView}
+        arrowColor={arrowColor}
+        onChangeArrowColor={handleChangeArrowColor}
+      />
+    </>
   );
 }

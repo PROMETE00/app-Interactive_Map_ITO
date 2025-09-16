@@ -192,6 +192,11 @@ export function htmlPage(
 
   let map, playerMarker;
 
+  // ===== Runtime State (cambiable en vivo) =====
+  let PAN_MODE_RT = PAN_MODE;
+  let INITIAL_VIEW_RT = INITIAL_VIEW;
+  let SHOW_OSM_RT = SHOW_OSM;
+
   // ================= Helpers =================
   (function(){
     const box = document.getElementById('err');
@@ -224,32 +229,24 @@ export function htmlPage(
   const campusUnion = unionAll(CAMPUS);
   const baseBuffer  = campusUnion ? turf.buffer(campusUnion, BUFFER_M, { units:'meters' }) : null;
 
-  function getBoundsForMode(){
-    if (!baseBuffer) return null;
-    if (PAN_MODE === 'locked') return turf.bbox(baseBuffer);
-    if (PAN_MODE === 'soft') {
-      const soft = turf.buffer(campusUnion, BUFFER_M + SOFT_EXTRA_M, { units:'meters' });
-      return turf.bbox(soft);
+  function computePanBounds(mode){
+    if (!campusUnion) return null;
+    if (mode === 'locked') {
+      const bb = turf.bbox(turf.buffer(campusUnion, BUFFER_M, { units:'meters' }));
+      return [[bb[0],bb[1]],[bb[2],bb[3]]];
     }
-    return null; // 'free'
-  }
-  const boundsForPan = getBoundsForMode();
-
-  // Mascara (opcional)
-  let maskPoly = null;
-  if (MASK_OUTSIDE && baseBuffer) {
-    try {
-      const world = turf.bboxPolygon([-180,-85,180,85]);
-      maskPoly = turf.difference(world, baseBuffer) || null;
-    } catch(e) { maskPoly = null; }
+    if (mode === 'soft') {
+      const bb = turf.bbox(turf.buffer(campusUnion, BUFFER_M + SOFT_EXTRA_M, { units:'meters' }));
+      return [[bb[0],bb[1]],[bb[2],bb[3]]];
+    }
+    return null; // free
   }
 
-  function getInitialFitBounds(){
-    if (PAN_MODE === 'soft' && boundsForPan) return boundsForPan;
-    if (boundsForPan) return boundsForPan;
-    if (baseBuffer) return turf.bbox(baseBuffer);
-    if (campusUnion) return turf.bbox(campusUnion);
-    return null;
+  function pointInBounds(lngLat, bounds){
+    if (!bounds) return true;
+    const [[w,s],[e,n]] = bounds;
+    const [x,y] = lngLat;
+    return x >= w && x <= e && y >= s && y <= n;
   }
 
   async function loadOsmBuildingsInsideCampus(bbox, campusMask){
@@ -289,6 +286,7 @@ out body;
 
       if(map.getSource('buildings')){
         map.getSource('buildings').setData(clipped);
+        ['b-3d'].forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id,'visibility','visible'); });
       }else{
         map.addSource('buildings',{type:'geojson',data:clipped});
         map.addLayer({
@@ -329,7 +327,7 @@ out body;
       try{
         const cut = campusMask ? turf.intersect(feat, campusMask) : feat;
         if(cut){
-          // ¡Conserva color/props tras el recorte!
+          // conserva color/props
           cut.properties = { ...feat.properties, ...(cut.properties||{}) };
           fcBuild.features.push(cut);
         }
@@ -533,10 +531,12 @@ out body;
         .setLngLat(START)
         .addTo(map);
 
-      // APIs globales útiles
+      // ===== EXPOSE RUNTIME APIS =====
       window.__MAP_READY__ = true;
       window.__PLAYER_EL__ = el;
       window.__ARROW_FILL__ = fill;
+
+      // Cambia color de flecha
       window.setArrowColor = function(color){
         try{
           document.documentElement.style.setProperty('--arrow-color', color);
@@ -544,6 +544,48 @@ out body;
         }catch(e){}
       };
 
+      // Cambia modo de pan en vivo
+      window.setPanMode = function(mode){
+        try{
+          PAN_MODE_RT = mode;
+          const bounds = computePanBounds(mode);
+          map.setMaxBounds(bounds ? bounds : null);
+
+          if (bounds) {
+            const c = map.getCenter();
+            if (!pointInBounds([c.lng, c.lat], bounds)) {
+              map.fitBounds(bounds, { padding: 40, maxZoom: 19, duration: 250 });
+            }
+          }
+        }catch(e){}
+      };
+
+      // Cambia topdown/oblique (ajusta pitch)
+      window.setInitialView = function(view){
+        try{
+          INITIAL_VIEW_RT = view;
+          const pitch = (view === 'topdown') ? 0 : OBLIQUE_PITCH;
+          map.easeTo({ pitch, duration: 250 });
+          // 'pitchend' actualizará visibilidad de capas 2D
+        }catch(e){}
+      };
+
+      // Mostrar/ocultar edificios OSM en vivo (opcional)
+      window.setShowOsm = async function(flag){
+        try{
+          SHOW_OSM_RT = !!flag;
+          if (!SHOW_OSM_RT) {
+            if (map.getLayer('b-3d')) map.setLayoutProperty('b-3d','visibility','none');
+            return;
+          }
+          const bb = map.getBounds();
+          const flat = [bb.getWest(), bb.getSouth(), bb.getEast(), bb.getNorth()];
+          await loadOsmBuildingsInsideCampus(flat, campusUnion);
+          if (map.getLayer('b-3d')) map.setLayoutProperty('b-3d','visibility','visible');
+        }catch(e){}
+      };
+
+      // Posición/rumbo del usuario
       window.updatePlayer = function(lng, lat, heading){
         try {
           if (typeof lng === 'number' && typeof lat === 'number') {
@@ -555,6 +597,7 @@ out body;
         } catch(e){}
       };
 
+      // Añadir edificios en caliente
       window.addBuildings = function(defs){ addCustomBuildings(defs || [], campusUnion); };
     });
   }
