@@ -4,7 +4,7 @@ import type { BuildingDef } from '@/components/buildings/types';
 type Basemap = 'positron' | 'voyager' | 'dark' | 'osm';
 type PanMode = 'locked' | 'soft' | 'free';
 
-function getRasterBasemapStyle(name: Basemap) {
+function getBasemapStyle(name: Basemap) {
   const cartoAttr = '© OpenStreetMap contributors © CARTO';
   const style: any = { version: 8, sources: {} as Record<string, any>, layers: [] as any[] };
 
@@ -111,7 +111,8 @@ export function htmlPage(
     initialView?: 'topdown' | 'oblique';
     obliquePitch?: number;
     showOsmBuildings?: boolean;
-    hideBaseBuildings?: boolean; // 👈 NUEVO: ocultar edificios 2D del estilo base
+    /** Color de la flecha (hex, rgb, hsl). */
+    arrowColor?: string;
   } = {},
   buildings: BuildingDef[] = []
 ) {
@@ -123,12 +124,9 @@ export function htmlPage(
   const initialView  = opts.initialView ?? 'topdown';
   const obliquePitch = opts.obliquePitch ?? 60;
   const showOsm      = opts.showOsmBuildings ?? false;
-  const hideBase     = opts.hideBaseBuildings ?? true;
+  const arrowColor   = opts.arrowColor ?? '#2563eb';
 
-  // ⚠️ Si queremos ocultar edificios base, usamos estilo VECTOR para poder apagar capas.
-  const styleDef: string | object = hideBase
-    ? 'https://demotiles.maplibre.org/style.json' // vector (openmaptiles schema)
-    : getRasterBasemapStyle(basemap);             // raster normal
+  const styleJSON = getBasemapStyle(basemap);
 
   const heightExpr = [
     'coalesce',
@@ -145,10 +143,30 @@ export function htmlPage(
   html,body,#map{height:100%;margin:0}
   .maplibregl-ctrl{font-size:14px}
   .err{position:absolute;left:0;right:0;top:0;background:#fee2e2;color:#991b1b;padding:8px 12px;font-family:system-ui,sans-serif;z-index:9999;display:none}
-  .player{width:20px;height:20px;border-radius:50%;background:#22c55e;border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.15);position:relative}
-  .player:after{content:'';position:absolute;left:50%;top:50%;width:100%;height:100%;border-radius:50%;
-    transform:translate(-50%,-50%);box-shadow:0 0 0 0 rgba(34,197,94,.45);animation:pulse 2s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.45)}70%{box-shadow:0 0 0 18px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+
+  /* === Flecha compuesta (halo + relleno) === */
+  :root{
+    --arrow-color: ${arrowColor};
+    --arrow-halo: #ffffff;
+  }
+  .arrow-wrap{ position:relative; width:0;height:0; transform-origin:50% 0%; }
+  .arrow-halo, .arrow-fill{
+    position:absolute;left:50%;top:0;transform:translateX(-50%);
+    width:0;height:0;
+  }
+  .arrow-halo{
+    border-left:13px solid transparent;
+    border-right:13px solid transparent;
+    border-bottom:22px solid var(--arrow-halo);
+    z-index:0;
+  }
+  .arrow-fill{
+    border-left:12px solid transparent;
+    border-right:12px solid transparent;
+    border-bottom:20px solid var(--arrow-color);
+    z-index:1;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.4));
+  }
 </style>
 </head><body>
 <div id="map"></div>
@@ -157,8 +175,9 @@ export function htmlPage(
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/osmtogeojson@3.0.0-beta.5/osmtogeojson.min.js"></script>
 <script>
+  // ===== Datos inyectados =====
   const CAMPUS = ${JSON.stringify(campusData)};
-  const STYLE = ${JSON.stringify(styleDef)}; // puede ser URL (string) o JSON (objeto)
+  const STYLE = ${JSON.stringify(styleJSON)};
   const START = [${center.lng}, ${center.lat}];
   const BUFFER_M = ${bufferM};
   const PAN_MODE = ${JSON.stringify(panMode)};
@@ -167,12 +186,13 @@ export function htmlPage(
   const INITIAL_VIEW = ${JSON.stringify(initialView)};
   const OBLIQUE_PITCH = ${obliquePitch};
   const SHOW_OSM = ${showOsm};
-  const HIDE_BASE = ${hideBase};
   const HEIGHT_EXPR = ${JSON.stringify(heightExpr)};
+  const ARROW_COLOR = ${JSON.stringify(arrowColor)};
   const CUSTOM_BUILDINGS = ${JSON.stringify(buildings)};
 
   let map, playerMarker;
 
+  // ================= Helpers =================
   (function(){
     const box = document.getElementById('err');
     window.addEventListener('error', e => { box.style.display='block'; box.textContent = 'Error: ' + e.message; });
@@ -192,6 +212,14 @@ export function htmlPage(
     if (a[0]!==b[0] || a[1]!==b[1]) r = r.concat([a]);
     return r;
   }
+  // Normaliza [lat,lng] -> [lng,lat] si detecta el patrón
+  function normLngLat(pair){
+    const a = pair?.[0], b = pair?.[1];
+    if (typeof a === 'number' && typeof b === 'number'){
+      if (Math.abs(a) <= 90 && Math.abs(b) > 90) return [b, a];
+    }
+    return [a, b];
+  }
 
   const campusUnion = unionAll(CAMPUS);
   const baseBuffer  = campusUnion ? turf.buffer(campusUnion, BUFFER_M, { units:'meters' }) : null;
@@ -203,10 +231,11 @@ export function htmlPage(
       const soft = turf.buffer(campusUnion, BUFFER_M + SOFT_EXTRA_M, { units:'meters' });
       return turf.bbox(soft);
     }
-    return null;
+    return null; // 'free'
   }
   const boundsForPan = getBoundsForMode();
 
+  // Mascara (opcional)
   let maskPoly = null;
   if (MASK_OUTSIDE && baseBuffer) {
     try {
@@ -226,6 +255,7 @@ export function htmlPage(
   async function loadOsmBuildingsInsideCampus(bbox, campusMask){
     try{
       if(!bbox || !campusMask) return;
+
       const south=bbox[1], west=bbox[0], north=bbox[3], east=bbox[2];
       const bboxStr=\`\${south},\${west},\${north},\${east}\`;
       const q=\`
@@ -274,13 +304,16 @@ out body;
     }catch(e){ console.warn('Overpass error:', e); }
   }
 
+  // ===== Edificios + POIs (puntos) + Áreas (polígonos de entradas/zonas) =====
   function addCustomBuildings(defs, campusMask){
     const fcBuild={type:'FeatureCollection',features:[]};
     const fcPOI={type:'FeatureCollection',features:[]};
+    const fcAreas={type:'FeatureCollection',features:[]};
 
     for(const b of (defs||[])){
       if(!b || !Array.isArray(b.polygon) || !b.polygon.length) continue;
-      const ring=closeRing(b.polygon);
+      const ring=closeRing((b.polygon||[]).map(normLngLat));
+
       const feat={ type:'Feature',
         properties:{
           id:b.id, name:b.name,
@@ -292,31 +325,75 @@ out body;
         },
         geometry:{ type:'Polygon', coordinates:[ring] }
       };
+
       try{
         const cut = campusMask ? turf.intersect(feat, campusMask) : feat;
-        if(cut) fcBuild.features.push(cut);
+        if(cut){
+          // ¡Conserva color/props tras el recorte!
+          cut.properties = { ...feat.properties, ...(cut.properties||{}) };
+          fcBuild.features.push(cut);
+        }
       }catch(e){}
 
       for(const p of (b.pois||[])){
-        fcPOI.features.push({
-          type:'Feature',
-          properties:{ id:p.id, name:p.name, type:p.type },
-          geometry:{ type:'Point', coordinates:p.coord }
-        });
+        // Zonas tipo "entrada" como POLÍGONOS opcionales
+        if (Array.isArray(p.polygon) && p.polygon.length >= 3) {
+          try{
+            const pring = closeRing(p.polygon.map(normLngLat));
+            const areaFeat = {
+              type:'Feature',
+              properties:{
+                id:p.id, name:p.name, type:p.type,
+                color: p.color || ({
+                  entrada:'#22c55e', escaleras:'#f59e0b', elevador:'#06b6d4',
+                  baños:'#a855f7', oficina:'#ef4444', otro:'#111827'
+                }[p.type] || '#22c55e')
+              },
+              geometry:{ type:'Polygon', coordinates:[pring] }
+            };
+            const cut = campusMask ? turf.intersect(areaFeat, campusMask) : areaFeat;
+            if (cut) {
+              cut.properties = { ...areaFeat.properties, ...(cut.properties||{}) };
+              fcAreas.features.push(cut);
+            }
+          }catch(e){}
+        } else if (Array.isArray(p.coord)) {
+          // POI como punto (legacy)
+          fcPOI.features.push({
+            type:'Feature',
+            properties:{ id:p.id, name:p.name, type:p.type },
+            geometry:{ type:'Point', coordinates: normLngLat(p.coord) }
+          });
+        }
       }
     }
 
+    // === Fuentes/capas ===
     if(map.getSource('custom-buildings')){
       map.getSource('custom-buildings').setData(fcBuild);
     }else{
       map.addSource('custom-buildings',{type:'geojson',data:fcBuild});
+
+      // 2D footprint (para topdown)
+      map.addLayer({
+        id:'custom-2d', type:'fill', source:'custom-buildings',
+        paint:{ 'fill-color':['coalesce',['get','color'],'#9ca3af'], 'fill-opacity':0.85 },
+        layout:{ visibility:'none' }
+      });
+      map.addLayer({
+        id:'custom-outline', type:'line', source:'custom-buildings',
+        paint:{ 'line-color':['coalesce',['get','color'],'#666'], 'line-width':1.2 },
+        layout:{ visibility:'none' }
+      });
+
+      // 3D
       map.addLayer({
         id:'custom-3d', type:'fill-extrusion', source:'custom-buildings',
         paint:{
           'fill-extrusion-color':['coalesce',['get','color'],'#9ca3af'],
-          'fill-extrusion-opacity':0.98,
-          'fill-extrusion-height': ['coalesce',['to-number',['get','height']], ['*',3,['to-number',['get','levels']]], 10],
-          'fill-extrusion-base': ['coalesce',['to-number',['get','base']], 0]
+          'fill-extrusion-opacity':0.92,
+          'fill-extrusion-height':['coalesce',['to-number',['get','height']], ['*',3,['to-number',['get','levels']]], 10],
+          'fill-extrusion-base':['coalesce',['to-number',['get','base']], 0]
         }
       });
     }
@@ -335,20 +412,22 @@ out body;
         paint:{ 'text-color':'#111','text-halo-color':'#fff','text-halo-width':1.1 }
       });
     }
-  }
 
-  function hideBaseBuildingsIfVector(){
-    try{
-      const layers = (map.getStyle() && map.getStyle().layers) || [];
-      for(const l of layers){
-        const id = l.id || '';
-        const sl = l['source-layer'] || '';
-        if ((sl && String(sl).toLowerCase().includes('building')) || /building/i.test(id)) {
-          // apaga cualquier capa de edificios del estilo base
-          map.setLayoutProperty(id, 'visibility', 'none');
-        }
-      }
-    }catch(e){}
+    if(map.getSource('custom-areas')){
+      map.getSource('custom-areas').setData(fcAreas);
+    }else{
+      map.addSource('custom-areas',{type:'geojson',data:fcAreas});
+      map.addLayer({
+        id:'custom-areas-fill', type:'fill', source:'custom-areas',
+        paint:{ 'fill-color':['coalesce',['get','color'],'#22c55e'], 'fill-opacity':0.7 },
+        layout:{ visibility:'none' }
+      });
+      map.addLayer({
+        id:'custom-areas-outline', type:'line', source:'custom-areas',
+        paint:{ 'line-color':['coalesce',['get','color'],'#16a34a'], 'line-width':1.4 },
+        layout:{ visibility:'none' }
+      });
+    }
   }
 
   function setupMap(){
@@ -357,7 +436,7 @@ out body;
 
     map = new maplibregl.Map({
       container: 'map',
-      style: STYLE,     // URL (vector) o JSON (raster)
+      style: STYLE,
       center: START,
       zoom: 18,
       pitch: pitch0,
@@ -373,10 +452,12 @@ out body;
         const soft = turf.buffer(campusUnion, BUFFER_M + SOFT_EXTRA_M, { units:'meters' });
         return turf.bbox(soft);
       }
-      return null;
+      return null; // 'free'
     })();
 
-    if (boundsForPan) map.setMaxBounds([[boundsForPan[0],boundsForPan[1]],[boundsForPan[2],boundsForPan[3]]]);
+    if (boundsForPan) {
+      map.setMaxBounds([[boundsForPan[0],boundsForPan[1]],[boundsForPan[2],boundsForPan[3]]]);
+    }
 
     const fitBB = (function(){
       if (PAN_MODE === 'soft' && boundsForPan) return boundsForPan;
@@ -387,10 +468,7 @@ out body;
     })();
 
     map.on('load', async () => {
-      // Si estamos en estilo vector y se pidió ocultar edificios, apágalos del estilo base
-      if (HIDE_BASE) hideBaseBuildingsIfVector();
-
-      if (MASK_OUTSIDE) {
+      if (${maskOutside ? 'true' : 'false'}) {
         try {
           const world = turf.bboxPolygon([-180,-85,180,85]);
           const baseBuffer2 = campusUnion ? turf.buffer(campusUnion, BUFFER_M, { units:'meters' }) : null;
@@ -412,29 +490,71 @@ out body;
         paint:{ 'text-color':'#111','text-halo-color':'#fff','text-halo-width':1.2 }
       });
 
-      // Solo si tú lo pides (y aun así serán 3D recortados al campus)
       if (SHOW_OSM) {
         const bb = fitBB || boundsForPan || null;
         await loadOsmBuildingsInsideCampus(bb, campusUnion);
       }
 
-      // Tus edificios modulares
+      // Tus edificios y zonas
       addCustomBuildings(CUSTOM_BUILDINGS, campusUnion);
 
-      if (fitBB) map.fitBounds([[fitBB[0],fitBB[1]],[fitBB[2],fitBB[3]]], { padding: 40, maxZoom: 19, duration: 0 });
+      // Ajuste de vista inicial
+      if (fitBB) {
+        map.fitBounds([[fitBB[0],fitBB[1]],[fitBB[2],fitBB[3]]], { padding: 40, maxZoom: 19, duration: 0 });
+      }
 
-      const el = document.createElement('div'); el.className='player';
-      playerMarker = new maplibregl.Marker({ element: el }).setLngLat(START).addTo(map);
+      // Alterna 2D (topdown) vs 3D (oblicuo)
+      function update2DLayersVisibility(){
+        const vis = map.getPitch() <= 5 ? 'visible' : 'none';
+        ['custom-2d','custom-outline','custom-areas-fill','custom-areas-outline'].forEach(id=>{
+          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+        });
+      }
+      update2DLayersVisibility();
+      map.on('pitchend', update2DLayersVisibility);
 
+      // === MARCADOR: Flecha compuesta (color garantizado) ===
+      const el = document.createElement('div');
+      el.className = 'arrow-wrap';
+
+      const halo = document.createElement('i');
+      halo.className = 'arrow-halo';
+
+      const fill = document.createElement('i');
+      fill.className = 'arrow-fill';
+      // Doble garantía de color:
+      document.documentElement.style.setProperty('--arrow-color', ARROW_COLOR);
+      fill.style.borderBottomColor = ARROW_COLOR;
+
+      el.appendChild(halo);
+      el.appendChild(fill);
+
+      playerMarker = new maplibregl.Marker({ element: el, anchor: 'top' })
+        .setLngLat(START)
+        .addTo(map);
+
+      // APIs globales útiles
       window.__MAP_READY__ = true;
+      window.__PLAYER_EL__ = el;
+      window.__ARROW_FILL__ = fill;
+      window.setArrowColor = function(color){
+        try{
+          document.documentElement.style.setProperty('--arrow-color', color);
+          if (window.__ARROW_FILL__) window.__ARROW_FILL__.style.borderBottomColor = color;
+        }catch(e){}
+      };
+
       window.updatePlayer = function(lng, lat, heading){
         try {
-          playerMarker.setLngLat([lng,lat]);
+          if (typeof lng === 'number' && typeof lat === 'number') {
+            playerMarker.setLngLat([lng,lat]);
+          }
           if (typeof heading === 'number' && !Number.isNaN(heading)) {
-            el.style.transform = 'rotate(' + heading + 'deg)';
+            el.style.transform = 'rotate(' + heading + 'deg)'; // 0° = norte
           }
         } catch(e){}
       };
+
       window.addBuildings = function(defs){ addCustomBuildings(defs || [], campusUnion); };
     });
   }

@@ -1,3 +1,4 @@
+// app/map.tsx
 import * as Location from 'expo-location';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -5,10 +6,13 @@ import type { WebView as WebViewType } from 'react-native-webview';
 import { WebView } from 'react-native-webview';
 
 import campus from '../assets/geo/campus.json';
-import { customBuildings } from '../components/buildings'; // usa '@/components/buildings' si tienes alias
+import { customBuildings } from '../components/buildings';
 import { htmlPage } from '../lib/htmlPage';
 
 type Center = { lng: number; lat: number };
+type Basemap = 'positron' | 'voyager' | 'dark' | 'osm';
+type PanMode = 'free' | 'locked' | 'soft';
+type InitialView = 'topdown' | 'oblique';
 
 function getGeojsonCenter(fc: any): Center {
   let minX = 180, minY = 90, maxX = -180, maxY = -90;
@@ -48,15 +52,14 @@ export default function MapScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          let pos =
-            (await Location.getLastKnownPositionAsync({ maxAge: 15000 })) ||
-            (await withTimeout(
-              Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.High,
-                mayShowUserSettingsDialog: true,
-              }),
-              10000
-            ));
+          const last = await Location.getLastKnownPositionAsync({ maxAge: 15000 });
+          const pos = last ?? await withTimeout(
+            Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+              mayShowUserSettingsDialog: true,
+            }),
+            10000
+          );
 
           const c = pos
             ? { lng: pos.coords.longitude, lat: pos.coords.latitude }
@@ -65,23 +68,19 @@ export default function MapScreen() {
           if (!cancelled) setCenter(c);
 
           sub = await Location.watchPositionAsync(
-            {
-              accuracy: Location.Accuracy.Balanced,
-              timeInterval: 1500,
-              distanceInterval: 2,
-            },
+            { accuracy: Location.Accuracy.Balanced, timeInterval: 1500, distanceInterval: 2 },
             (loc) => {
               const lng = loc.coords.longitude;
               const lat = loc.coords.latitude;
-              const headingDeg =
-                typeof loc.coords.heading === 'number' && !Number.isNaN(loc.coords.heading)
-                  ? loc.coords.heading
-                  : undefined;
+              const h = Number.isFinite(loc.coords.heading) ? (loc.coords.heading as number) : undefined;
 
-              const js =
-                `window.__MAP_READY__ && window.updatePlayer && window.updatePlayer(${lng.toFixed(
-                  6
-                )}, ${lat.toFixed(6)}, ${headingDeg ?? 'undefined'});`;
+              const js = `
+                (function(){
+                  if (window.__MAP_READY__ && window.updatePlayer) {
+                    window.updatePlayer(${lng.toFixed(6)}, ${lat.toFixed(6)}, ${Number.isFinite(h as number) ? (h as number).toFixed(1) : 'undefined'});
+                  }
+                })();
+                true;`;
               webRef.current?.injectJavaScript(js);
             }
           );
@@ -90,14 +89,10 @@ export default function MapScreen() {
       } catch {
         // fallback abajo
       }
-
       if (!cancelled) setCenter(campusCenter);
     })();
 
-    return () => {
-      cancelled = true;
-      sub?.remove();
-    };
+    return () => { cancelled = true; sub?.remove(); };
   }, [campusCenter]);
 
   if (!center) {
@@ -108,27 +103,42 @@ export default function MapScreen() {
     );
   }
 
-  // Basemap similar a geojson.io
-  const BASEMAP: 'positron' | 'voyager' | 'osm' = 'voyager';
-  const PANORAMICMODE: 'free' | 'locked' = 'locked';
+  // ====== Toggles fáciles ======
+  const BASEMAP: Basemap = 'voyager';      // 'positron' | 'voyager' | 'dark' | 'osm'
+  const PANORAMICMODE: PanMode = 'free';   // 'free' | 'locked' | 'soft'
+  const INITIAL_VIEW: InitialView = 'topdown'; // 'topdown' | 'oblique'
+  const SHOW_OSM = false;                  // pintar edificios OSM dentro del campus
+
+  // === Color de la flecha (configurable desde aquí) ===
+  const ARROW_COLOR = '#2563eb';           // cambia a tu gusto (ej. '#00A884')
 
   return (
     <WebView
       ref={webRef}
+      style={{ flex: 1 }}
       originWhitelist={['*']}
       setSupportMultipleWindows={false}
+      javaScriptEnabled
+      domStorageEnabled
+      allowFileAccess
+      allowUniversalAccessFromFileURLs
       source={{
-        html: htmlPage(center, campus, {
-        bufferM: 250,
-        basemap: BASEMAP,
-        panMode: PANORAMICMODE,
-        softExtraM: 150,     // cuánto más allá del buffer se permite (solo en 'soft')
-        maskOutside: false,  // true si quieres tapar lo de fuera
-        initialView: 'topdown', // vista vertical
-        obliquePitch: 60,    // si usas 'oblique'
-        showOsmBuildings: false,
-        hideBaseBuildings: true,
-      }, customBuildings)
+        html: htmlPage(
+          center,
+          campus,
+          {
+            bufferM: 250,
+            basemap: BASEMAP,
+            panMode: PANORAMICMODE,
+            softExtraM: 150,        // usado solo si panMode === 'soft'
+            maskOutside: false,
+            initialView: INITIAL_VIEW,
+            obliquePitch: 60,
+            showOsmBuildings: SHOW_OSM,
+            arrowColor: ARROW_COLOR,
+          } as any,                  // cast temporal hasta actualizar tipos en htmlPage.ts
+          customBuildings
+        )
       }}
     />
   );

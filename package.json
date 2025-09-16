@@ -46,6 +46,7 @@
     "@babel/core": "^7.25.2",
     "@types/geojson": "^7946.0.16",
     "@types/react": "~19.1.10",
+    "eas-cli": "^16.19.2",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"

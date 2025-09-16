@@ -1,23 +1,25 @@
 export type LngLat = [number, number];
 
-export type POIType = 'bathroom' | 'staff' | 'entrance' | 'custom';
+export type POIType = 'entrada' | 'escaleras' | 'elevador' | 'baños' | 'oficina' | 'otro';
 
-export interface BuildingPOI {
+export type BuildingPOI = {
   id: string;
   name: string;
   type: POIType;
-  coord: LngLat;          // [lng, lat]
-  iconUrl?: string;       // futuro: icono propio
-}
+  coord?: [number, number];                // opcional
+  polygon?: [number, number][];            // opcional (para zonas/entradas)
+  color?: string;                           // color propio del polígono
+};
 
-export interface BuildingDef {
+
+export type BuildingDef = {
   id: string;
   name: string;
-  polygon: LngLat[];      // anillo exterior (si no está cerrado, lo cerramos)
-  height?: number;        // metros
-  levels?: number;        // alternativa a height (3m por nivel)
-  base?: number;          // base en metros (default 0)
-  color?: string;         // hex (fallback gris)
-  textureUrl?: string;    // FUTURO: textura para 3D (requiere custom layer)
-  pois?: BuildingPOI[];   // puntos de interés internos
-}
+  polygon: LngLat[]; // anillo exterior; no es necesario cerrarlo
+  height?: number;   // metros (prioridad sobre levels)
+  levels?: number;   // pisos (≈3 m por piso)
+  base?: number;     // metros
+  color?: string;    // '#9ca3af' por ej.
+  textureUrl?: string | null;
+  pois?: BuildingPOI[];
+};

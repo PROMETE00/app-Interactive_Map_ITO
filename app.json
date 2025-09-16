@@ -8,7 +8,6 @@
     "scheme": "appmobilev1",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.appMobilev1",
@@ -16,7 +15,6 @@
         "NSLocationWhenInUseUsageDescription": "Mostramos tu ubicación para guiarte dentro del campus."
       }
     },
-
     "android": {
       "package": "com.anonymous.appMobilev1",
       "edgeToEdgeEnabled": true,
@@ -26,16 +24,16 @@
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
-
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       "expo-location",
@@ -49,9 +47,14 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ac3bbe91-7ceb-4f1d-8e16-9d2ba627a71f"
+      }
     }
   }
 }
