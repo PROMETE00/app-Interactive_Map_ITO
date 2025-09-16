@@ -16,27 +16,27 @@ const Gimnasio: BuildingDef = defineBuilding({
   pois: [
     // Entrada principal como POLÍGONO (color verde propio)
     {
-      id: 'gim-entr-1',
-      name: 'Entrada principal',
-      type: 'entrada',
-      polygon: [
-        [-96.743710, 17.077910],
-        [-96.743670, 17.077900],
-        [-96.743680, 17.077860],
-        [-96.743720, 17.077870],
-      ],
-      color: '#22c55e'
-    },
+    id: 'gim-entr-1',
+    name: 'Entrada principal',
+    type: 'entrada',
+    polygon: [
+      [-96.743812, 17.077545], // (oeste + norte)
+      [-96.743746, 17.077524], // (este + norte)
+      [-96.743752, 17.077507], // (este + sur)
+      [-96.743818, 17.077528], // (oeste + sur)
+    ],
+    color: '#22c55e'
+  },
     // Otra entrada, con otro color
     {
       id: 'gim-entr-2',
       name: 'Entrada lateral',
       type: 'entrada',
       polygon: [
-        [-96.743600, 17.077750],
-        [-96.743560, 17.077740],
-        [-96.743570, 17.077700],
-        [-96.743610, 17.077710],
+        [-96.743716, 17.0779367], // (oeste + norte)
+        [-96.743682, 17.0779263], // (este + norte)
+        [-96.743685, 17.077919], // (este + sur)
+        [-96.7437187, 17.077929], // (oeste + sur)
       ],
       color: '#16a34a'
     },

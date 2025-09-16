@@ -105,7 +105,7 @@ export default function MapScreen() {
 
   // ====== Toggles fáciles ======
   const BASEMAP: Basemap = 'voyager';      // 'positron' | 'voyager' | 'dark' | 'osm'
-  const PANORAMICMODE: PanMode = 'free';   // 'free' | 'locked' | 'soft'
+  const PANORAMICMODE: PanMode = 'locked';   // 'free' | 'locked' | 'soft'
   const INITIAL_VIEW: InitialView = 'topdown'; // 'topdown' | 'oblique'
   const SHOW_OSM = false;                  // pintar edificios OSM dentro del campus
 
