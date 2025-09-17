@@ -113,6 +113,8 @@ export function htmlPage(
     showOsmBuildings?: boolean;
     /** Color de la flecha (hex, rgb, hsl). */
     arrowColor?: string;
+    /** NUEVO: fuerza el orden de los vértices */
+    vertexOrder?: 'cw' | 'ccw' | 'auto';
   } = {},
   buildings: BuildingDef[] = []
 ) {
@@ -125,6 +127,7 @@ export function htmlPage(
   const obliquePitch = opts.obliquePitch ?? 60;
   const showOsm      = opts.showOsmBuildings ?? false;
   const arrowColor   = opts.arrowColor ?? '#2563eb';
+  const vertexOrder  = opts.vertexOrder ?? 'auto';
 
   const styleJSON = getBasemapStyle(basemap);
 
@@ -143,30 +146,11 @@ export function htmlPage(
   html,body,#map{height:100%;margin:0}
   .maplibregl-ctrl{font-size:14px}
   .err{position:absolute;left:0;right:0;top:0;background:#fee2e2;color:#991b1b;padding:8px 12px;font-family:system-ui,sans-serif;z-index:9999;display:none}
-
-  /* === Flecha compuesta (halo + relleno) === */
-  :root{
-    --arrow-color: ${arrowColor};
-    --arrow-halo: #ffffff;
-  }
+  :root{ --arrow-color:${arrowColor}; --arrow-halo:#ffffff; }
   .arrow-wrap{ position:relative; width:0;height:0; transform-origin:50% 0%; }
-  .arrow-halo, .arrow-fill{
-    position:absolute;left:50%;top:0;transform:translateX(-50%);
-    width:0;height:0;
-  }
-  .arrow-halo{
-    border-left:13px solid transparent;
-    border-right:13px solid transparent;
-    border-bottom:22px solid var(--arrow-halo);
-    z-index:0;
-  }
-  .arrow-fill{
-    border-left:12px solid transparent;
-    border-right:12px solid transparent;
-    border-bottom:20px solid var(--arrow-color);
-    z-index:1;
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,.4));
-  }
+  .arrow-halo,.arrow-fill{ position:absolute;left:50%;top:0;transform:translateX(-50%); width:0;height:0; }
+  .arrow-halo{ border-left:13px solid transparent; border-right:13px solid transparent; border-bottom:22px solid var(--arrow-halo); z-index:0; }
+  .arrow-fill{ border-left:12px solid transparent; border-right:12px solid transparent; border-bottom:20px solid var(--arrow-color); z-index:1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
 </style>
 </head><body>
 <div id="map"></div>
@@ -189,10 +173,11 @@ export function htmlPage(
   const HEIGHT_EXPR = ${JSON.stringify(heightExpr)};
   const ARROW_COLOR = ${JSON.stringify(arrowColor)};
   const CUSTOM_BUILDINGS = ${JSON.stringify(buildings)};
+  const VERTEX_ORDER = ${JSON.stringify(vertexOrder)}; // <-- nuevo
 
   let map, playerMarker;
 
-  // ===== Runtime State (cambiable en vivo) =====
+  // ===== Runtime State =====
   let PAN_MODE_RT = PAN_MODE;
   let INITIAL_VIEW_RT = INITIAL_VIEW;
   let SHOW_OSM_RT = SHOW_OSM;
@@ -224,6 +209,26 @@ export function htmlPage(
       if (Math.abs(a) <= 90 && Math.abs(b) > 90) return [b, a];
     }
     return [a, b];
+  }
+  // --- NUEVO: orientación de anillos (shoelace) ---
+  function signedArea(coords){
+    let s = 0;
+    const n = coords.length;
+    if (n < 3) return 0;
+    for (let i=0;i<n;i++){
+      const j = (i+1)%n;
+      s += coords[i][0]*coords[j][1] - coords[j][0]*coords[i][1];
+    }
+    return s/2; // >0 => CCW, <0 => CW
+  }
+  function orientRing(coords, order /* 'cw' | 'ccw' | 'auto' */){
+    if (!Array.isArray(coords) || coords.length < 3 || order === 'auto') return coords;
+    // si viene cerrado, quita el último para evaluar
+    const closed = coords.length > 2 && coords[0][0]===coords[coords.length-1][0] && coords[0][1]===coords[coords.length-1][1];
+    const work = closed ? coords.slice(0, -1) : coords.slice();
+    const ccw = signedArea(work) > 0;
+    if ((order === 'cw' && ccw) || (order === 'ccw' && !ccw)) work.reverse();
+    return work;
   }
 
   const campusUnion = unionAll(CAMPUS);
@@ -302,7 +307,7 @@ out body;
     }catch(e){ console.warn('Overpass error:', e); }
   }
 
-  // ===== Edificios + POIs (puntos) + Áreas (polígonos de entradas/zonas) =====
+  // ===== Edificios + POIs (puntos) + Áreas (polígonos) =====
   function addCustomBuildings(defs, campusMask){
     const fcBuild={type:'FeatureCollection',features:[]};
     const fcPOI={type:'FeatureCollection',features:[]};
@@ -310,7 +315,10 @@ out body;
 
     for(const b of (defs||[])){
       if(!b || !Array.isArray(b.polygon) || !b.polygon.length) continue;
-      const ring=closeRing((b.polygon||[]).map(normLngLat));
+
+      // reorienta según VERTEX_ORDER y cierra
+      const oriented = orientRing((b.polygon||[]).map(normLngLat), VERTEX_ORDER);
+      const ring = closeRing(oriented);
 
       const feat={ type:'Feature',
         properties:{
@@ -327,17 +335,15 @@ out body;
       try{
         const cut = campusMask ? turf.intersect(feat, campusMask) : feat;
         if(cut){
-          // conserva color/props
           cut.properties = { ...feat.properties, ...(cut.properties||{}) };
           fcBuild.features.push(cut);
         }
       }catch(e){}
 
       for(const p of (b.pois||[])){
-        // Zonas tipo "entrada" como POLÍGONOS opcionales
         if (Array.isArray(p.polygon) && p.polygon.length >= 3) {
           try{
-            const pring = closeRing(p.polygon.map(normLngLat));
+            const pring = closeRing(orientRing(p.polygon.map(normLngLat), VERTEX_ORDER));
             const areaFeat = {
               type:'Feature',
               properties:{
@@ -356,7 +362,6 @@ out body;
             }
           }catch(e){}
         } else if (Array.isArray(p.coord)) {
-          // POI como punto (legacy)
           fcPOI.features.push({
             type:'Feature',
             properties:{ id:p.id, name:p.name, type:p.type },
@@ -372,7 +377,6 @@ out body;
     }else{
       map.addSource('custom-buildings',{type:'geojson',data:fcBuild});
 
-      // 2D footprint (para topdown)
       map.addLayer({
         id:'custom-2d', type:'fill', source:'custom-buildings',
         paint:{ 'fill-color':['coalesce',['get','color'],'#9ca3af'], 'fill-opacity':0.85 },
@@ -383,8 +387,6 @@ out body;
         paint:{ 'line-color':['coalesce',['get','color'],'#666'], 'line-width':1.2 },
         layout:{ visibility:'none' }
       });
-
-      // 3D
       map.addLayer({
         id:'custom-3d', type:'fill-extrusion', source:'custom-buildings',
         paint:{
@@ -493,15 +495,13 @@ out body;
         await loadOsmBuildingsInsideCampus(bb, campusUnion);
       }
 
-      // Tus edificios y zonas
+      // Edificios/zones custom
       addCustomBuildings(CUSTOM_BUILDINGS, campusUnion);
 
-      // Ajuste de vista inicial
       if (fitBB) {
         map.fitBounds([[fitBB[0],fitBB[1]],[fitBB[2],fitBB[3]]], { padding: 40, maxZoom: 19, duration: 0 });
       }
 
-      // Alterna 2D (topdown) vs 3D (oblicuo)
       function update2DLayersVisibility(){
         const vis = map.getPitch() <= 5 ? 'visible' : 'none';
         ['custom-2d','custom-outline','custom-areas-fill','custom-areas-outline'].forEach(id=>{
@@ -511,21 +511,14 @@ out body;
       update2DLayersVisibility();
       map.on('pitchend', update2DLayersVisibility);
 
-      // === MARCADOR: Flecha compuesta (color garantizado) ===
+      // === MARCADOR: Flecha ===
       const el = document.createElement('div');
       el.className = 'arrow-wrap';
-
-      const halo = document.createElement('i');
-      halo.className = 'arrow-halo';
-
-      const fill = document.createElement('i');
-      fill.className = 'arrow-fill';
-      // Doble garantía de color:
+      const halo = document.createElement('i'); halo.className = 'arrow-halo';
+      const fill = document.createElement('i'); fill.className = 'arrow-fill';
       document.documentElement.style.setProperty('--arrow-color', ARROW_COLOR);
       fill.style.borderBottomColor = ARROW_COLOR;
-
-      el.appendChild(halo);
-      el.appendChild(fill);
+      el.appendChild(halo); el.appendChild(fill);
 
       playerMarker = new maplibregl.Marker({ element: el, anchor: 'top' })
         .setLngLat(START)
@@ -536,7 +529,6 @@ out body;
       window.__PLAYER_EL__ = el;
       window.__ARROW_FILL__ = fill;
 
-      // Cambia color de flecha
       window.setArrowColor = function(color){
         try{
           document.documentElement.style.setProperty('--arrow-color', color);
@@ -544,13 +536,11 @@ out body;
         }catch(e){}
       };
 
-      // Cambia modo de pan en vivo
       window.setPanMode = function(mode){
         try{
           PAN_MODE_RT = mode;
           const bounds = computePanBounds(mode);
           map.setMaxBounds(bounds ? bounds : null);
-
           if (bounds) {
             const c = map.getCenter();
             if (!pointInBounds([c.lng, c.lat], bounds)) {
@@ -560,17 +550,14 @@ out body;
         }catch(e){}
       };
 
-      // Cambia topdown/oblique (ajusta pitch)
       window.setInitialView = function(view){
         try{
           INITIAL_VIEW_RT = view;
           const pitch = (view === 'topdown') ? 0 : OBLIQUE_PITCH;
           map.easeTo({ pitch, duration: 250 });
-          // 'pitchend' actualizará visibilidad de capas 2D
         }catch(e){}
       };
 
-      // Mostrar/ocultar edificios OSM en vivo (opcional)
       window.setShowOsm = async function(flag){
         try{
           SHOW_OSM_RT = !!flag;
@@ -585,7 +572,6 @@ out body;
         }catch(e){}
       };
 
-      // Posición/rumbo del usuario
       window.updatePlayer = function(lng, lat, heading){
         try {
           if (typeof lng === 'number' && typeof lat === 'number') {
@@ -597,7 +583,6 @@ out body;
         } catch(e){}
       };
 
-      // Añadir edificios en caliente
       window.addBuildings = function(defs){ addCustomBuildings(defs || [], campusUnion); };
     });
   }

@@ -124,7 +124,8 @@ export default function MapScreen() {
         initialView: INITIAL_VIEW_INIT, // sólo valor inicial
         obliquePitch: 60,
         showOsmBuildings: SHOW_OSM_INIT,
-        arrowColor: ARROW_COLOR_INIT,   // sólo valor inicial
+        arrowColor: ARROW_COLOR_INIT, // sólo valor inicial
+        vertexOrder: 'cw',
       },
       customBuildings
     );
