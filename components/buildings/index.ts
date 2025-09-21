@@ -9,9 +9,11 @@ import AulaAC from './defs/ito-Aula-Ac';
 import AulaNN from './defs/ito-AulaNN';
 import Biblioteca from './defs/ito-Biblioteca';
 import CentroComputo from './defs/ito-CentroDeConmputo';
+import Doctorado from './defs/ito-Doctorado';
 import DptoQuimicaBioquimicaIndustrial from './defs/ito-Dpto-Bioquimica-Industrial';
 import DptoCienciasDeLaTierra from './defs/ito-Dpto-CienciasDeLaTierra';
 import EdificioL from './defs/ito-Edificio-L';
+import EdificioB from './defs/ito-EdificioB';
 import Gimnasio from './defs/ito-Gimnasio';
 import LabFisicoQuimica from './defs/ito-Lab-FisicoQuimica';
 import LaboratorioCivil from './defs/ito-Laboratorio-Civil';
@@ -30,6 +32,8 @@ export const campusPrincipal = [
   AulaNN,
   Gimnasio,
   LabFisicoQuimica,
+  Doctorado,
+  EdificioB,
 ] satisfies BuildingDef[];
 
 // Este es el arreglo que pasas a htmlPage()
