@@ -49,13 +49,21 @@ export default function MapScreen() {
   const BASEMAP: Basemap = 'voyager';
   const PANORAMICMODE_INIT: PanMode = 'locked';
   const INITIAL_VIEW_INIT: InitialView = 'topdown';
-  const SHOW_OSM_INIT = false;
+
+  // switches iniciales
+  const SHOW_OSM_INIT = false;     // false => basemap sin edificios
+  const MASK_OUTSIDE_INIT = false; // true => enmascara fuera del campus
+
   const ARROW_COLOR_INIT = '#2563eb';
 
   // ====== Estado controlado por la navbar (cambios en vivo) ======
   const [panMode, setPanMode] = useState<PanMode>(PANORAMICMODE_INIT);
   const [initialView, setInitialView] = useState<InitialView>(INITIAL_VIEW_INIT);
   const [arrowColor, setArrowColor] = useState<string>(ARROW_COLOR_INIT);
+
+  // switches en vivo
+  const [showOsmBuildings, setShowOsmBuildings] = useState<boolean>(SHOW_OSM_INIT);
+  const [maskOutside, setMaskOutside] = useState<boolean>(MASK_OUTSIDE_INIT);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,8 +116,7 @@ export default function MapScreen() {
     return () => { cancelled = true; sub?.remove(); };
   }, [campusCenter]);
 
-  // ====== ¡Congelamos el HTML inicial del WebView! ======
-  // Importante: NO dependas de arrowColor, panMode o initialView (estado vivo) aquí.
+  // ====== HTML inicial del WebView (no depende del estado vivo) ======
   const initialHtml = useMemo(() => {
     if (!center) return '<html></html>';
     return htmlPage(
@@ -120,18 +127,17 @@ export default function MapScreen() {
         basemap: BASEMAP,
         panMode: PANORAMICMODE_INIT, // sólo valor inicial
         softExtraM: 150,
-        maskOutside: false,
-        initialView: INITIAL_VIEW_INIT, // sólo valor inicial
+        maskOutside: MASK_OUTSIDE_INIT,   // sólo valor inicial
+        initialView: INITIAL_VIEW_INIT,   // sólo valor inicial
         obliquePitch: 60,
-        showOsmBuildings: SHOW_OSM_INIT,
-        arrowColor: ARROW_COLOR_INIT, // sólo valor inicial
+        showOsmBuildings: SHOW_OSM_INIT,  // sólo valor inicial
+        arrowColor: ARROW_COLOR_INIT,     // sólo valor inicial
         vertexOrder: 'cw',
       },
       customBuildings
     );
-  }, [center]); // <- sólo cambia cuando tengamos el centro por primera vez
+  }, [center]);
 
-  // También memorizamos el objeto source para no cambiar su referencia
   const webSource = useMemo(() => ({ html: initialHtml }), [initialHtml]);
 
   // ====== Handlers Navbar → inyección JS (sin recargar WebView) ======
@@ -148,6 +154,21 @@ export default function MapScreen() {
   const handleChangeArrowColor = (hex: string) => {
     setArrowColor(hex);
     webRef.current?.injectJavaScript(`window.setArrowColor && window.setArrowColor(${JSON.stringify(hex)}); true;`);
+  };
+
+  // ==== NUEVO: switches de edificios OSM y máscara ====
+  const handleToggleOsmBuildings = (value: boolean) => {
+    setShowOsmBuildings(value);
+    webRef.current?.injectJavaScript(
+      `window.setShowOsmBuildings && window.setShowOsmBuildings(${value}); true;`
+    );
+  };
+
+  const handleToggleMaskOutside = (value: boolean) => {
+    setMaskOutside(value);
+    webRef.current?.injectJavaScript(
+      `window.setMaskOutside && window.setMaskOutside(${value}); true;`
+    );
   };
 
   if (!center) {
@@ -169,7 +190,7 @@ export default function MapScreen() {
         domStorageEnabled
         allowFileAccess
         allowUniversalAccessFromFileURLs
-        source={webSource}   // <- estable; no cambia al tocar navbar
+        source={webSource}
       />
 
       <MapNavbar
@@ -179,6 +200,12 @@ export default function MapScreen() {
         onChangeInitialView={handleChangeInitialView}
         arrowColor={arrowColor}
         onChangeArrowColor={handleChangeArrowColor}
+
+        // ===== NUEVOS props para los switches =====
+        showOsmBuildings={showOsmBuildings}
+        onToggleOsmBuildings={handleToggleOsmBuildings}
+        maskOutside={maskOutside}
+        onToggleMaskOutside={handleToggleMaskOutside}
       />
     </>
   );

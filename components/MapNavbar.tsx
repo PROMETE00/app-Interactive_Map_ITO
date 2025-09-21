@@ -17,8 +17,16 @@ type Props = {
   arrowColor: string;
   onChangeArrowColor: (hex: string) => void;
 
+  // opcionales ya existentes por si luego los usas
   basemap?: Basemap;
   onChangeBasemap?: (b: Basemap) => void;
+
+  // NUEVOS: switches de capas
+  showOsmBuildings: boolean;
+  onToggleOsmBuildings: (v: boolean) => void;
+
+  maskOutside: boolean;
+  onToggleMaskOutside: (v: boolean) => void;
 };
 
 const DARK_BG = '#111827'; // gris muy oscuro
@@ -34,8 +42,10 @@ export default function MapNavbar({
   panMode, onChangePanMode,
   initialView, onChangeInitialView,
   arrowColor, onChangeArrowColor,
+  showOsmBuildings, onToggleOsmBuildings,
+  maskOutside, onToggleMaskOutside,
 }: Props) {
-  const [panel, setPanel] = useState<null | 'pan' | 'view' | 'color'>(null);
+  const [panel, setPanel] = useState<null | 'pan' | 'view' | 'color' | 'layers'>(null);
 
   const IconBtn = ({
     onPress,
@@ -91,6 +101,19 @@ export default function MapNavbar({
     />
   );
 
+  // Pequeño componente para dos opciones ON/OFF en fila
+  const ToggleRow = ({
+    label, value, onChange,
+  }: { label: string; value: boolean; onChange: (v: boolean) => void }) => (
+    <View style={{ marginBottom: 10 }}>
+      <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 8 }}>{label}</Text>
+      <View style={{ flexDirection: 'row' }}>
+        <Pill label="ON" active={value === true} onPress={() => onChange(true)} />
+        <Pill label="OFF" active={value === false} onPress={() => onChange(false)} />
+      </View>
+    </View>
+  );
+
   // Panel flotante (aparece pegado arriba a la derecha de la barra)
   const Panel = () => {
     if (!panel) return null;
@@ -112,7 +135,7 @@ export default function MapNavbar({
             right: 12,
             bottom: 72 + 8, // 8px de separación por encima de la barra
             minWidth: 220,
-            maxWidth: 320,
+            maxWidth: 340,
             borderRadius: 14,
             backgroundColor: DARK_PANEL,
             padding: 12,
@@ -168,6 +191,17 @@ export default function MapNavbar({
                   />
                 ))}
               </ScrollView>
+            </>
+          )}
+
+          {panel === 'layers' && (
+            <>
+              <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 12 }}>Capas</Text>
+              <ToggleRow
+                label="Capa Inferior OSM"
+                value={maskOutside}
+                onChange={(v) => { onToggleMaskOutside(v); }}
+              />
             </>
           )}
         </View>
@@ -229,6 +263,14 @@ export default function MapNavbar({
           onPress={() => setPanel(panel === 'color' ? null : 'color')}
         >
           <Ionicons name="color-palette-outline" size={24} color={panel === 'color' ? ACCENT : TEXT} />
+        </IconBtn>
+
+        <IconBtn
+          label="Capas"
+          active={panel === 'layers'}
+          onPress={() => setPanel(panel === 'layers' ? null : 'layers')}
+        >
+          <MaterialCommunityIcons name="layers-outline" size={24} color={panel === 'layers' ? ACCENT : TEXT} />
         </IconBtn>
       </View>
     </View>

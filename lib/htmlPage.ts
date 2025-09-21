@@ -110,7 +110,7 @@ export function htmlPage(
     maskOutside?: boolean;
     initialView?: 'topdown' | 'oblique';
     obliquePitch?: number;
-    showOsmBuildings?: boolean;
+    showOsmBuildings?: boolean; // (conservado para compatibilidad, ya no se usa)
     /** Color de la flecha (hex, rgb, hsl). */
     arrowColor?: string;
     /** NUEVO: fuerza el orden de los vértices */
@@ -125,7 +125,6 @@ export function htmlPage(
   const maskOutside  = !!opts.maskOutside;
   const initialView  = opts.initialView ?? 'topdown';
   const obliquePitch = opts.obliquePitch ?? 60;
-  const showOsm      = opts.showOsmBuildings ?? false;
   const arrowColor   = opts.arrowColor ?? '#2563eb';
   const vertexOrder  = opts.vertexOrder ?? 'auto';
 
@@ -157,7 +156,6 @@ export function htmlPage(
 <div class="err" id="err"></div>
 <script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/osmtogeojson@3.0.0-beta.5/osmtogeojson.min.js"></script>
 <script>
   // ===== Datos inyectados =====
   const CAMPUS = ${JSON.stringify(campusData)};
@@ -166,21 +164,20 @@ export function htmlPage(
   const BUFFER_M = ${bufferM};
   const PAN_MODE = ${JSON.stringify(panMode)};
   const SOFT_EXTRA_M = ${softExtraM};
-  const MASK_OUTSIDE = ${maskOutside};
+  const MASK_OUTSIDE_INIT = ${maskOutside};
   const INITIAL_VIEW = ${JSON.stringify(initialView)};
   const OBLIQUE_PITCH = ${obliquePitch};
-  const SHOW_OSM = ${showOsm};
   const HEIGHT_EXPR = ${JSON.stringify(heightExpr)};
   const ARROW_COLOR = ${JSON.stringify(arrowColor)};
   const CUSTOM_BUILDINGS = ${JSON.stringify(buildings)};
-  const VERTEX_ORDER = ${JSON.stringify(vertexOrder)}; // <-- nuevo
+  const VERTEX_ORDER = ${JSON.stringify(vertexOrder)};
 
   let map, playerMarker;
 
   // ===== Runtime State =====
   let PAN_MODE_RT = PAN_MODE;
   let INITIAL_VIEW_RT = INITIAL_VIEW;
-  let SHOW_OSM_RT = SHOW_OSM;
+  let MASK_VISIBLE_RT = MASK_OUTSIDE_INIT;
 
   // ================= Helpers =================
   (function(){
@@ -202,7 +199,6 @@ export function htmlPage(
     if (a[0]!==b[0] || a[1]!==b[1]) r = r.concat([a]);
     return r;
   }
-  // Normaliza [lat,lng] -> [lng,lat] si detecta el patrón
   function normLngLat(pair){
     const a = pair?.[0], b = pair?.[1];
     if (typeof a === 'number' && typeof b === 'number'){
@@ -210,7 +206,6 @@ export function htmlPage(
     }
     return [a, b];
   }
-  // --- NUEVO: orientación de anillos (shoelace) ---
   function signedArea(coords){
     let s = 0;
     const n = coords.length;
@@ -219,11 +214,10 @@ export function htmlPage(
       const j = (i+1)%n;
       s += coords[i][0]*coords[j][1] - coords[j][0]*coords[i][1];
     }
-    return s/2; // >0 => CCW, <0 => CW
+    return s/2;
   }
   function orientRing(coords, order /* 'cw' | 'ccw' | 'auto' */){
     if (!Array.isArray(coords) || coords.length < 3 || order === 'auto') return coords;
-    // si viene cerrado, quita el último para evaluar
     const closed = coords.length > 2 && coords[0][0]===coords[coords.length-1][0] && coords[0][1]===coords[coords.length-1][1];
     const work = closed ? coords.slice(0, -1) : coords.slice();
     const ccw = signedArea(work) > 0;
@@ -232,79 +226,19 @@ export function htmlPage(
   }
 
   const campusUnion = unionAll(CAMPUS);
-  const baseBuffer  = campusUnion ? turf.buffer(campusUnion, BUFFER_M, { units:'meters' }) : null;
 
   function computePanBounds(mode){
     if (!campusUnion) return null;
-    if (mode === 'locked') {
-      const bb = turf.bbox(turf.buffer(campusUnion, BUFFER_M, { units:'meters' }));
-      return [[bb[0],bb[1]],[bb[2],bb[3]]];
-    }
-    if (mode === 'soft') {
-      const bb = turf.bbox(turf.buffer(campusUnion, BUFFER_M + SOFT_EXTRA_M, { units:'meters' }));
-      return [[bb[0],bb[1]],[bb[2],bb[3]]];
-    }
-    return null; // free
+    if (mode === 'free') return null; // <- sin límites en 'free'
+    const base = turf.buffer(campusUnion, BUFFER_M + (mode==='soft'? SOFT_EXTRA_M : 0), { units:'meters' });
+    const bb = turf.bbox(base);
+    return [[bb[0],bb[1]],[bb[2],bb[3]]];
   }
-
   function pointInBounds(lngLat, bounds){
     if (!bounds) return true;
     const [[w,s],[e,n]] = bounds;
     const [x,y] = lngLat;
     return x >= w && x <= e && y >= s && y <= n;
-  }
-
-  async function loadOsmBuildingsInsideCampus(bbox, campusMask){
-    try{
-      if(!bbox || !campusMask) return;
-
-      const south=bbox[1], west=bbox[0], north=bbox[3], east=bbox[2];
-      const bboxStr=\`\${south},\${west},\${north},\${east}\`;
-      const q=\`
-[out:json][timeout:25];
-(
-  way["building"](\${bboxStr});
-  relation["building"](\${bboxStr});
-);
-(._;>;);
-out body;
-\`.trim();
-
-      let overpassJSON;
-      try{
-        const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'text/plain'},body:q});
-        overpassJSON=await r.json();
-      }catch{
-        const r2=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'text/plain'},body:q});
-        overpassJSON=await r2.json();
-      }
-
-      const gjson=osmtogeojson(overpassJSON);
-      const clipped={type:'FeatureCollection',features:[]};
-      for(const f of gjson.features){
-        if(!f.geometry) continue;
-        const t=f.geometry.type;
-        if(t==='Polygon'||t==='MultiPolygon'){
-          try{ const cut=turf.intersect(f,campusMask); if(cut) clipped.features.push(cut);}catch(e){}
-        }
-      }
-
-      if(map.getSource('buildings')){
-        map.getSource('buildings').setData(clipped);
-        ['b-3d'].forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id,'visibility','visible'); });
-      }else{
-        map.addSource('buildings',{type:'geojson',data:clipped});
-        map.addLayer({
-          id:'b-3d', type:'fill-extrusion', source:'buildings',
-          paint:{
-            'fill-extrusion-color':'#9ca3af',
-            'fill-extrusion-opacity':0.95,
-            'fill-extrusion-height': HEIGHT_EXPR,
-            'fill-extrusion-base': 0
-          }
-        });
-      }
-    }catch(e){ console.warn('Overpass error:', e); }
   }
 
   // ===== Edificios + POIs (puntos) + Áreas (polígonos) =====
@@ -316,7 +250,6 @@ out body;
     for(const b of (defs||[])){
       if(!b || !Array.isArray(b.polygon) || !b.polygon.length) continue;
 
-      // reorienta según VERTEX_ORDER y cierra
       const oriented = orientRing((b.polygon||[]).map(normLngLat), VERTEX_ORDER);
       const ring = closeRing(oriented);
 
@@ -371,12 +304,10 @@ out body;
       }
     }
 
-    // === Fuentes/capas ===
     if(map.getSource('custom-buildings')){
       map.getSource('custom-buildings').setData(fcBuild);
     }else{
       map.addSource('custom-buildings',{type:'geojson',data:fcBuild});
-
       map.addLayer({
         id:'custom-2d', type:'fill', source:'custom-buildings',
         paint:{ 'fill-color':['coalesce',['get','color'],'#9ca3af'], 'fill-opacity':0.85 },
@@ -444,44 +375,51 @@ out body;
     });
     map.addControl(new maplibregl.NavigationControl());
 
-    const baseBuffer  = campusUnion ? turf.buffer(campusUnion, BUFFER_M, { units:'meters' }) : null;
     const boundsForPan = (function(){
-      if (!baseBuffer) return null;
-      if (PAN_MODE === 'locked') return turf.bbox(baseBuffer);
-      if (PAN_MODE === 'soft') {
-        const soft = turf.buffer(campusUnion, BUFFER_M + SOFT_EXTRA_M, { units:'meters' });
-        return turf.bbox(soft);
-      }
-      return null; // 'free'
+      if (!campusUnion) return null;
+      if (PAN_MODE === 'free') return null; // <- sin maxBounds en 'free'
+      const base = turf.buffer(campusUnion, BUFFER_M + (PAN_MODE === 'soft' ? SOFT_EXTRA_M : 0), { units:'meters' });
+      const bb = turf.bbox(base);
+      return [[bb[0],bb[1]],[bb[2],bb[3]]];
     })();
 
     if (boundsForPan) {
-      map.setMaxBounds([[boundsForPan[0],boundsForPan[1]],[boundsForPan[2],boundsForPan[3]]]);
+      map.setMaxBounds([[boundsForPan[0][0],boundsForPan[0][1]],[boundsForPan[1][0],boundsForPan[1][1]]]);
+    } else {
+      map.setMaxBounds(null);
     }
 
     const fitBB = (function(){
-      if (PAN_MODE === 'soft' && boundsForPan) return boundsForPan;
-      if (boundsForPan) return boundsForPan;
-      if (baseBuffer) return turf.bbox(baseBuffer);
+      if (boundsForPan) return [boundsForPan[0][0],boundsForPan[0][1],boundsForPan[1][0],boundsForPan[1][1]];
       if (campusUnion) return turf.bbox(campusUnion);
       return null;
     })();
 
     map.on('load', async () => {
-      if (${maskOutside ? 'true' : 'false'}) {
-        try {
-          const world = turf.bboxPolygon([-180,-85,180,85]);
-          const baseBuffer2 = campusUnion ? turf.buffer(campusUnion, BUFFER_M, { units:'meters' }) : null;
-          if (baseBuffer2) {
-            const maskPoly = turf.difference(world, baseBuffer2);
-            if (maskPoly) {
-              map.addSource('mask', { type:'geojson', data: maskPoly });
-              map.addLayer({ id:'mask-fill', type:'fill', source:'mask',
-                paint:{ 'fill-color':'#f7f7f7', 'fill-opacity': 1 } });
-            }
-          }
-        } catch(e){}
-      }
+      // === MÁSCARA: solo INTERIOR del campus ===
+      try {
+        const baseBuffer2 = campusUnion ? turf.buffer(campusUnion, BUFFER_M, { units:'meters' }) : null;
+        if (baseBuffer2) {
+          map.addSource('mask-campus', { type:'geojson', data: baseBuffer2 });
+
+          const firstSymbol = (() => {
+            const layers = map.getStyle().layers || [];
+            const sym = layers.find(l => l.type === 'symbol');
+            return sym?.id;
+          })();
+
+          map.addLayer({
+            id: 'mask-campus-fill',
+            type: 'fill',
+            source: 'mask-campus',
+            paint: {
+              'fill-color': '#ffffff',
+              'fill-opacity': 0.92
+            },
+            layout: { visibility: MASK_OUTSIDE_INIT ? 'visible' : 'none' }
+          }, firstSymbol);
+        }
+      } catch(e){}
 
       map.addSource('campus', { type:'geojson', data: CAMPUS });
       map.addLayer({
@@ -489,11 +427,6 @@ out body;
         layout:{ 'text-field':['get','name'], 'text-size':13, 'text-anchor':'center' },
         paint:{ 'text-color':'#111','text-halo-color':'#fff','text-halo-width':1.2 }
       });
-
-      if (SHOW_OSM) {
-        const bb = fitBB || boundsForPan || null;
-        await loadOsmBuildingsInsideCampus(bb, campusUnion);
-      }
 
       // Edificios/zones custom
       addCustomBuildings(CUSTOM_BUILDINGS, campusUnion);
@@ -558,17 +491,12 @@ out body;
         }catch(e){}
       };
 
-      window.setShowOsm = async function(flag){
+      // NUEVO: mostrar/ocultar máscara del campus
+      window.setMaskOutside = function(on){
         try{
-          SHOW_OSM_RT = !!flag;
-          if (!SHOW_OSM_RT) {
-            if (map.getLayer('b-3d')) map.setLayoutProperty('b-3d','visibility','none');
-            return;
-          }
-          const bb = map.getBounds();
-          const flat = [bb.getWest(), bb.getSouth(), bb.getEast(), bb.getNorth()];
-          await loadOsmBuildingsInsideCampus(flat, campusUnion);
-          if (map.getLayer('b-3d')) map.setLayoutProperty('b-3d','visibility','visible');
+          MASK_VISIBLE_RT = !!on;
+          const v = MASK_VISIBLE_RT ? 'visible' : 'none';
+          if (map.getLayer('mask-campus-fill')) map.setLayoutProperty('mask-campus-fill', 'visibility', v);
         }catch(e){}
       };
 
@@ -578,7 +506,7 @@ out body;
             playerMarker.setLngLat([lng,lat]);
           }
           if (typeof heading === 'number' && !Number.isNaN(heading)) {
-            el.style.transform = 'rotate(' + heading + 'deg)'; // 0° = norte
+            el.style.transform = 'rotate(' + heading + 'deg)';
           }
         } catch(e){}
       };
