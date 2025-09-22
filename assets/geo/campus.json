@@ -1,1 +1,50 @@
-{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Deportivo del Tecnológico","fill":"#FF7F0E","fill-opacity":0.4,"stroke":"#FF7F0E","stroke-width":2},"geometry":{"type":"Polygon","coordinates":[[[-96.745049,17.082813],[-96.7448477,17.0827549],[-96.743633,17.0801728],[-96.7466016,17.0787674],[-96.7479494,17.0813477],[-96.745049,17.082813]]]}},{"type":"Feature","properties":{"name":"Instituto Tecnológico de Oaxaca","fill":"#1F77B4","fill-opacity":0.4,"stroke":"#1F77B4","stroke-width":2},"geometry":{"type":"Polygon","coordinates":[[[-96.7435878,17.0799933],[-96.7420834,17.0768355],[-96.7449138,17.0755003],[-96.7467052,17.078538],[-96.7435878,17.0799933]]]}}]}
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Deportivo del Tecnológico",
+        "fill": "#FF7F0E",
+        "fill-opacity": 0.4,
+        "stroke": "#FF7F0E",
+        "stroke-width": 2
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-96.745049, 17.082813],
+            [-96.7448477, 17.0827549],
+            [-96.743633, 17.0801728],
+            [-96.7466016, 17.0787674],
+            [-96.7479494, 17.0813477],
+            [-96.745049, 17.082813]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Instituto Tecnológico de Oaxaca",
+        "fill": "#1F77B4",
+        "fill-opacity": 0.4,
+        "stroke": "#1F77B4",
+        "stroke-width": 2
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-96.7435878, 17.0799933],
+            [-96.7420834, 17.0768355],
+            [-96.7449138, 17.0755003],
+            [-96.7467052, 17.078538],
+            [-96.7435878, 17.0799933]
+          ]
+        ]
+      }
+    }
+  ]
+}

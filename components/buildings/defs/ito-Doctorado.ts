@@ -13,7 +13,9 @@ const Doctorado: BuildingDef = defineBuilding({
   [-96.744036, 17.078983],     // p4
 ],
 
-  levels: 1,
+  levels: 3,
+  height: 2,
+  base: 0,
   color: '#f59e0b', // naranja
   pois: [],
 });

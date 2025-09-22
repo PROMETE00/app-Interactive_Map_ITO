@@ -1,18 +1,24 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
     "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+
+    "moduleResolution": "Bundler",
+    "skipLibCheck": true
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    "types/**/*.d.ts"
   ],
   "exclude": ["android", "ios", "node_modules"]
 }

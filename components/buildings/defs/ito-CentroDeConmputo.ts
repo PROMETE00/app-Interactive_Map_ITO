@@ -12,7 +12,8 @@ const CentroComputo: BuildingDef = defineBuilding({
     [-96.74424834626649 , 17.07896829026252],// p3
     [-96.74449867167962, 17.07904518828288],// p4
   ],
-  levels: 1,
+  levels: 2,
+  height: 6,
   color: '#06a2a7',
   pois: [
     // entradas

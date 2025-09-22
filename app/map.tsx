@@ -5,7 +5,8 @@ import { ActivityIndicator, View } from 'react-native';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { WebView } from 'react-native-webview';
 
-import campus from '../assets/geo/campus.json';
+import { ITO_CAMPUS_FC } from '@/components/buildings/ito-campus-mask'; // <– NUEVO: tu polígono para pintar la capa
+import campus from '../assets/geo/campus.json'; // <– se conserva (solo para center de fallback)
 import { customBuildings } from '../components/buildings';
 import MapNavbar from '../components/MapNavbar';
 import { htmlPage } from '../lib/htmlPage';
@@ -41,6 +42,7 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 export default function MapScreen() {
+  // Usamos el campus.json SOLO para calcular centro de respaldo
   const campusCenter = useMemo(() => getGeojsonCenter(campus), []);
   const [center, setCenter] = useState<Center | null>(null);
   const webRef = useRef<WebViewType>(null);
@@ -121,7 +123,7 @@ export default function MapScreen() {
     if (!center) return '<html></html>';
     return htmlPage(
       center,
-      campus,
+      ITO_CAMPUS_FC, // 👈 AHORA la capa del campus usa tu polígono local, NO el assets/geo/campus.json
       {
         bufferM: 250,
         basemap: BASEMAP,
@@ -133,6 +135,7 @@ export default function MapScreen() {
         showOsmBuildings: SHOW_OSM_INIT,  // sólo valor inicial
         arrowColor: ARROW_COLOR_INIT,     // sólo valor inicial
         vertexOrder: 'cw',
+        floorHeightM: 3.2
       },
       customBuildings
     );

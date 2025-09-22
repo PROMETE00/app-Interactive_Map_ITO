@@ -11,6 +11,7 @@ const AulaNN: BuildingDef = defineBuilding({
     [-96.743726, 17.079216], //p4
   ],
   levels: 1,
+  height: 1,
   color: '#06a2a7',
   pois: [
     // entradas
