@@ -1,13 +1,13 @@
 import { defineBuilding } from '../define';
 import type { BuildingDef } from '../types';
 
-const LaboratorioQuimica: BuildingDef = defineBuilding({
+const LaboratorioQuimicaPesada: BuildingDef = defineBuilding({
   id: 'ito-Laboratorio-Quimica',
   name: 'Laboratorio de Química',
   // [lng, lat] siempre
   polygon: [
-    [-96.744706, 17.078923],//p1
-    [-96.744390, 17.078831],//p2
+    [-96.744773, 17.078709],//p1
+    [-96.744457, 17.078617],//p2
     [-96.744524, 17.078402],//p3
     [-96.744840, 17.078494],//p4
   ],
@@ -18,4 +18,4 @@ const LaboratorioQuimica: BuildingDef = defineBuilding({
   ],
 });
 
-export default LaboratorioQuimica;
+export default LaboratorioQuimicaPesada;
