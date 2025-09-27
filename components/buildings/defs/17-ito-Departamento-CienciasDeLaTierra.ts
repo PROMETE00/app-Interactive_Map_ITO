@@ -2,9 +2,9 @@
 import { defineBuilding } from '../define';
 import type { BuildingDef } from '../types';
 
-const DeptoCienciasTierra: BuildingDef = defineBuilding({
-  id: 'ito-depto-ciencias-tierra',
-  name: 'Depto. de Ciencias de la Tierra',
+const DepartamentoCienciasTierra: BuildingDef = defineBuilding({
+  id: 'ito-departamento-ciencias-tierra',
+  name: 'Departamento de Ciencias de la Tierra',
   // Mismo set de puntos, reordenados para que no se crucen y queden alineados con Civil.
   // Forman el "cuello" hacia el norte (p1→p2→p3) y luego bajan por el lado este y vuelven por el oeste.
   polygon: [
@@ -24,4 +24,4 @@ const DeptoCienciasTierra: BuildingDef = defineBuilding({
   pois: [],
 });
 
-export default DeptoCienciasTierra;
+export default DepartamentoCienciasTierra;

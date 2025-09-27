@@ -5,51 +5,51 @@ import type { BuildingDef } from './types';
 import { validateBuildings } from './validate';
 
 
-import AudiovisualAdministracion from './defs/ito-Audiovisual-Administracion';
-import AulaAC from './defs/ito-Aula-Ac';
-import AulaH from './defs/ito-Aula-H';
-import AulaK from './defs/ito-Aula-k';
-import Aulas1s4 from './defs/ito-Aula-s1-s4';
-import AulaTipo from './defs/ito-Aula-Tipo';
-import AulaNN from './defs/ito-AulaNN';
-import Biblioteca from './defs/ito-Biblioteca';
-import CafeITO from './defs/ito-Cafe-ITO';
-import CentroComputo from './defs/ito-CentroDeConmputo';
-import Cesa from './defs/ito-Cesa';
-import CoordinacionLenguas from './defs/ito-Coordinacion-Lenguas';
-import DepartamentoCienciasEconomicoAdministrativas from './defs/ito-Departamento-Ciencias-Economico-Administrativas';
-import Doctorado from './defs/ito-Doctorado';
-import DptoQuimicaBioquimicaIndustrial from './defs/ito-Dpto-Bioquimica-Industrial';
-import DptoCienciasDeLaTierra from './defs/ito-Dpto-CienciasDeLaTierra';
-import EdificioE from './defs/ito-Edificio-E';
-import EdificioElectronica from './defs/ito-Edificio-Electronica';
-import EdificioF from './defs/ito-Edificio-F';
-import EdificioG from './defs/ito-Edificio-G';
-import EdificioI from './defs/ito-Edificio-I';
-import EdificioL from './defs/ito-Edificio-L';
-import EdificioB from './defs/ito-EdificioB';
-import EdificioJ from './defs/ito-EdificioJ';
-import EdificioQ from './defs/ito-EdificioQ';
-import Gimnasio from './defs/ito-Gimnasio';
+import LaboratorioDepartamentoMecanica from './defs/14-ito-Laboratorio-Departamento-Mecanica';
+import LaboratorioQuimicaPesada from './defs/15-ito-Laboratorio-QuimicaPesada';
+import LaboratorioCivil from './defs/16-ito-Laboratorio-Civil';
+import DepartamentoCienciasDeLaTierra from './defs/17-ito-Departamento-CienciasDeLaTierra';
+import AulaAC from './defs/18-ito-Aula-Ac';
+import EdificioElectronica from './defs/19-ito-Edificio-Electronica';
+import DepartamentoQuimicaBioquimicaIndustrial from './defs/2-ito-Departamento-Quimica-Bioquimica-Industrial';
+import EdificioB from './defs/23-ito-Edificio-B';
+import LabFisicoQuimica from './defs/24-ito-Lab-FisicoQuimica';
+import EdificioL from './defs/25-ito-Edificio-L';
+import AulaNN from './defs/3-ito-AulaNN';
+import Biblioteca from './defs/32-ito-Biblioteca';
+import Gimnasio from './defs/33-ito-Gimnasio';
+import CafeITO from './defs/37-ito-Cafe-ITO';
+import EdificioQ from './defs/39-ito-Edificio-Q';
+import EdificioE from './defs/42-ito-Edificio-E';
+import LaboratorioIndustrial from './defs/43-ito-Laboratorio-Industrial';
+import ServicioMedico from './defs/44-1-ito-Servicio-Medico';
+import EdificioH from './defs/44-2-3-ito-Edificio-H';
+import CoordinacionLenguas from './defs/44-4-ito-Coordinacion-Lenguas';
+import Cesa from './defs/44-5-ito-Cesa';
+import EdificioF from './defs/45-ito-Edificio-F';
+import AudiovisualLicenciatura from './defs/46-ito-Audiovisual-Licenciatura';
+import EdificioG from './defs/47-ito-Edificio-G';
+import AulaK from './defs/48-ito-Aula-k';
+import Aulas1s4 from './defs/49-ito-Aula-s1-s4';
+import EdificioJ from './defs/50-1-ito-Edificio-J';
+import DepartamentoCienciasEconomicoAdministrativas from './defs/50-2-ito-Departamento-Ciencias-Economico-Administrativas';
+import MAdministracion from './defs/51-ito-M-Administracion';
+import AulaTipo from './defs/52-ito-Aula-Tipo';
+import EdificioI from './defs/53-ito-Edificio-I';
+import CentroComputo from './defs/6-ito-CentroDeConmputo-SistemasComputacionales';
+import Doctorado from './defs/7-ito-Doctorado';
 import Ingles1 from './defs/ito-Ingles1';
 import Ingles2 from './defs/ito-Ingles2';
-import LabFisicoQuimica from './defs/ito-Lab-FisicoQuimica';
-import LaboratorioCivil from './defs/ito-Laboratorio-Civil';
-import LaboratorioDepartamentoMecanica from './defs/ito-Laboratorio-Departamento-Mecanica';
-import LaboratorioIndustrial from './defs/ito-Laboratorio-Industrial';
-import LaboratorioQuimicaPesada from './defs/ito-Laboratorio-QuimicaPesada';
-import MAdministracion from './defs/ito-M-Administracion';
-import ServicioMedico from './defs/ito-Servicio-Medico';
 
 export const campusPrincipal = [
   Biblioteca,
   EdificioL,
   LaboratorioQuimicaPesada,
   LaboratorioCivil,
-  DptoCienciasDeLaTierra,
+  DepartamentoCienciasDeLaTierra,
   AulaAC,
   CentroComputo,
-  DptoQuimicaBioquimicaIndustrial,
+  DepartamentoQuimicaBioquimicaIndustrial,
   AulaNN,
   Gimnasio,
   LabFisicoQuimica,
@@ -64,7 +64,7 @@ export const campusPrincipal = [
   Aulas1s4,
   EdificioI,
   EdificioJ,
-  AudiovisualAdministracion,
+  AudiovisualLicenciatura,
   DepartamentoCienciasEconomicoAdministrativas,
   AulaTipo,
   MAdministracion,
@@ -73,7 +73,7 @@ export const campusPrincipal = [
   EdificioE,
   CafeITO,
   ServicioMedico,
-  AulaH,
+  EdificioH,
   CoordinacionLenguas,
   Cesa,
   LaboratorioDepartamentoMecanica,

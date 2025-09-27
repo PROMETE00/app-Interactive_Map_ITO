@@ -2,7 +2,7 @@
 import { defineBuilding } from '../define';
 import type { BuildingDef } from '../types';
 
-const DptoQuimicaBioquimicaIndustrial: BuildingDef = defineBuilding({
+const DepartamentoQuimicaBioquimicaIndustrial: BuildingDef = defineBuilding({
   id: 'ito-dpto-quimica-bioquimica-industrial',
   name: 'Departamento de Química y Bioquímica e Ingeniería Industrial',
   polygon: [
@@ -19,4 +19,4 @@ const DptoQuimicaBioquimicaIndustrial: BuildingDef = defineBuilding({
   ],
 });
 
-export default DptoQuimicaBioquimicaIndustrial;
+export default DepartamentoQuimicaBioquimicaIndustrial;

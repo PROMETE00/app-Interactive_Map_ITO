@@ -2,9 +2,9 @@
 import { defineBuilding } from '../define';
 import type { BuildingDef } from '../types';
 
-const AudiovisualAdministracion: BuildingDef = defineBuilding({
-  id: 'ito-audiovisual-administracion',
-  name: 'Audiovisual Administracion',
+const AudiovisualLicenciatura: BuildingDef = defineBuilding({
+  id: 'ito-audiovisual-Licenciatura',
+  name: 'Audiovisual Licenciatura',
   polygon: [
   [-96.74478881636371, 17.07661259887016], // p1
   [-96.74449377337294, 17.076523501297768], // p2
@@ -19,4 +19,4 @@ const AudiovisualAdministracion: BuildingDef = defineBuilding({
   pois: [],
 });
 
-export default AudiovisualAdministracion;
+export default AudiovisualLicenciatura;

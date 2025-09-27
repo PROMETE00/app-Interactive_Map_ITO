@@ -2,9 +2,9 @@
 import { defineBuilding } from '../define';
 import type { BuildingDef } from '../types';
 
-const AulaH: BuildingDef = defineBuilding({
-  id: 'ito-aula-h',
-  name: 'Aula H',
+const EdificioH: BuildingDef = defineBuilding({
+  id: 'ito-edificio-h',
+  name: 'Edificio H',
   polygon: [
 
     [-96.74472720494363 , 17.076786110947232], // p1
@@ -19,4 +19,4 @@ const AulaH: BuildingDef = defineBuilding({
   ],
 });
 
-export default AulaH;
+export default EdificioH;
