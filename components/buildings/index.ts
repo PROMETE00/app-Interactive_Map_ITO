@@ -19,16 +19,32 @@ import EdificioElectronica from './defs/19-ito-Edificio-Electronica';
 import DepartamentoQuimicaBioquimicaIndustrial from './defs/2-ito-Departamento-Quimica-Bioquimica-Industrial';
 import Seccion61 from './defs/20.-ito-Seccion61';
 import EdificioA from './defs/21.-itoEdificio-A';
+import LaboratorioMicroscopia from './defs/22.-1-ito-Laboratorio-Microscopia';
+import SalaTitulacion from './defs/22.-2-ito-Sala-Titulacion';
+import AulaDibujo from './defs/22.-3-ito-Aula-Dibujo';
 import EdificioB from './defs/23-ito-Edificio-B';
 import LabFisicoQuimica from './defs/24-ito-Lab-FisicoQuimica';
 import EdificioL from './defs/25-ito-Edificio-L';
+import AulasO from './defs/26.-ito-Aulas-O';
+import AulasP from './defs/27.-ito-Aulas-P';
 import AudiovisualIngenieria from './defs/28-ito-Audiovisual-Ingenieria';
+import EdificioC from './defs/29.-ito-Edificio-C';
 import AulaNN from './defs/3-ito-AulaNN';
+import AulaAM from './defs/30.-1-ito-Aula-AM';
+import DesarrolloAcademico from './defs/30.-2-ito-Desarrollo-Academico';
+import CubiculosMaestros from './defs/31.-ito-Cubiculos-Maestros';
 import Biblioteca from './defs/32-ito-Biblioteca';
 import Gimnasio from './defs/33-ito-Gimnasio';
+import ExtraEscolares from './defs/34.-ito-Extraescolares';
+import ServiciosEscolares from './defs/35.-1-ito-Servicios-Escolares';
+import DivisionEstudiosProfesionales from './defs/35.-2-ito-Division-Estudios-Profesionales';
+import Direccion from './defs/36.-ito-Direccion';
 import CafeITO from './defs/37-ito-Cafe-ITO';
+import Copias from './defs/38.-Copias';
 import EdificioQ from './defs/39-ito-Edificio-Q';
 import LaboratorioSimulacion from './defs/4.-ito-LaboratorioSimulacion';
+import PlantaTratamientoAguasResiduales from './defs/40.-ito-Planta-Tratamiento-Aguas-Residuales';
+import CienciasBasicas from './defs/41.-ito-Ciencias-Basicas';
 import EdificioE from './defs/42-ito-Edificio-E';
 import LaboratorioIndustrial from './defs/43-ito-Laboratorio-Industrial';
 import ServicioMedico from './defs/44-1-ito-Servicio-Medico';
@@ -51,9 +67,10 @@ import CentroComputo from './defs/6-ito-CentroDeConmputo-SistemasComputacionales
 import Doctorado from './defs/7-ito-Doctorado';
 import DEPIPosgrado from './defs/8.-ito-DEPI-Posgrado';
 import LaboratorioElectrica from './defs/9.-ito-Laboratorio-Electrica';
+import AulaSUM from './defs/ito-Aula-Sum';
 import Ingles1 from './defs/ito-Ingles1';
 import Ingles2 from './defs/ito-Ingles2';
-
+import IntermedioServiciosEscolares from './defs/ito-Intermedio-ServiciosEscolares-DivisionEstudios';
 
 export const campusPrincipal = [
   Biblioteca,
@@ -104,6 +121,24 @@ export const campusPrincipal = [
   Seccion61,
   EdificioA,
   AudiovisualIngenieria,
+  AulaAM,
+  DesarrolloAcademico,
+  AulaSUM,
+  LaboratorioMicroscopia,
+  SalaTitulacion,
+  AulaDibujo,
+  EdificioC,
+  AulasO,
+  AulasP,
+  CubiculosMaestros,
+  ExtraEscolares,
+  ServiciosEscolares,
+  DivisionEstudiosProfesionales,
+  IntermedioServiciosEscolares,
+  Direccion,
+  Copias,
+  CienciasBasicas,
+  PlantaTratamientoAguasResiduales,
 ] satisfies BuildingDef[];
 
 
