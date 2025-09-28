@@ -1,8 +1,6 @@
 // lib/templates/htmlPage.parts/runtime.ts
-import { dedent } from './utils';
-
 export function renderRuntimeScript() {
-  return dedent(`
+  return `
     <script>
       // ================= Helpers =================
       (function(){
@@ -51,45 +49,41 @@ export function renderRuntimeScript() {
       }
 
       function normalizeCampus(fc) {
-  if (!fc || !Array.isArray(fc.features)) return fc;
+        if (!fc || !Array.isArray(fc.features)) return fc;
 
-  function normCoords(coords) {
-    // Corrige [lat,lng] -> [lng,lat] y cierra anillos
-    return closeRing(coords.map(normLngLat));
-  }
+        function normCoords(coords) {
+          // Corrige [lat,lng] -> [lng,lat] y cierra anillos
+          return closeRing(coords.map(normLngLat));
+        }
 
-  function normGeom(geom) {
-    if (!geom) return geom;
-    if (geom.type === 'Polygon') {
-      const outer = geom.coordinates?.[0] ? normCoords(geom.coordinates[0]) : [];
-      const holes = (geom.coordinates || []).slice(1).map(r => closeRing(r.map(normLngLat)));
-      return { type: 'Polygon', coordinates: [outer, ...holes] };
-    }
-    if (geom.type === 'MultiPolygon') {
-      const polys = (geom.coordinates || []).map(poly => {
-        const outer = poly?.[0] ? normCoords(poly[0]) : [];
-        const holes = (poly || []).slice(1).map(r => closeRing(r.map(normLngLat)));
-        return [outer, ...holes];
-      });
-      return { type: 'MultiPolygon', coordinates: polys };
-    }
-    return geom;
-  }
+        function normGeom(geom) {
+          if (!geom) return geom;
+          if (geom.type === 'Polygon') {
+            const outer = geom.coordinates?.[0] ? normCoords(geom.coordinates[0]) : [];
+            const holes = (geom.coordinates || []).slice(1).map(r => closeRing(r.map(normLngLat)));
+            return { type: 'Polygon', coordinates: [outer, ...holes] };
+          }
+          if (geom.type === 'MultiPolygon') {
+            const polys = (geom.coordinates || []).map(poly => {
+              const outer = poly?.[0] ? normCoords(poly[0]) : [];
+              const holes = (poly || []).slice(1).map(r => closeRing(r.map(normLngLat)));
+              return [outer, ...holes];
+            });
+            return { type: 'MultiPolygon', coordinates: polys };
+          }
+          return geom;
+        }
 
-  return {
-    type: 'FeatureCollection',
-    features: fc.features
-      .filter(f => f && f.geometry)
-      .map(f => ({
-        ...f,
-        geometry: normGeom(f.geometry)
-      }))
-  };
-}
+        return {
+          type: 'FeatureCollection',
+          features: fc.features
+            .filter(f => f && f.geometry)
+            .map(f => ({ ...f, geometry: normGeom(f.geometry) }))
+        };
+      }
 
-const CAMPUS_NORM = normalizeCampus(CAMPUS);
-const campusUnion = unionAll(CAMPUS_NORM);
-
+      const CAMPUS_NORM = normalizeCampus(CAMPUS);
+      const campusUnion = unionAll(CAMPUS_NORM);
 
       function computePanBounds(mode){
         if (!campusUnion) return null;
@@ -120,8 +114,8 @@ const campusUnion = unionAll(CAMPUS_NORM);
           const feat={ type:'Feature',
             properties:{
               id:b.id, name:b.name,
-              height: b.height ?? undefined,  // altura por piso si hay 'levels'; total si no hay 'levels'
-              levels: b.levels ?? undefined,  // número de pisos
+              height: b.height ?? undefined,
+              levels: b.levels ?? undefined,
               base: b.base ?? 0,
               color: b.color ?? '#9ca3af',
               textureUrl: b.textureUrl ?? null
@@ -187,7 +181,7 @@ const campusUnion = unionAll(CAMPUS_NORM);
             paint:{
               'fill-extrusion-color':['coalesce',['get','color'],'#9ca3af'],
               'fill-extrusion-opacity':0.92,
-              'fill-extrusion-height': HEIGHT_EXPR, // 👈 usar la expr inyectada
+              'fill-extrusion-height': HEIGHT_EXPR,
               'fill-extrusion-base':['coalesce',['to-number',['get','base']], 0]
             }
           });
@@ -225,6 +219,61 @@ const campusUnion = unionAll(CAMPUS_NORM);
         }
       }
 
+      function toggle2DLayersForPitch(){
+        const vis = map.getPitch() <= 5 ? 'visible' : 'none';
+        ['custom-2d','custom-outline','custom-areas-fill','custom-areas-outline'].forEach(id=>{
+          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+        });
+      }
+
+      // ===== Mostrar/Ocultar edificios del estilo base (si existieran) =====
+      function setShowOsmBuildings(on){
+        try{
+          const style = map.getStyle();
+          const layers = style?.layers || [];
+          const ids = layers
+            .filter(l => {
+              const id = (l.id||'').toLowerCase();
+              const sl = (l['source-layer']||'').toLowerCase();
+              return id.includes('building') || sl.includes('building');
+            })
+            .map(l => l.id);
+
+          if (!ids.length) {
+            console.log('[showOsmBuildings] No se detectaron capas "building" en el estilo base (raster).');
+            return;
+          }
+          const v = on ? 'visible' : 'none';
+          ids.forEach(id => {
+            try { map.setLayoutProperty(id, 'visibility', v); } catch {}
+          });
+        } catch(e) {}
+      }
+      window.setShowOsmBuildings = setShowOsmBuildings;
+
+      // ===== Bridge RN WebView =====
+      function handleBridgeMessage(ev){
+        try{
+          const msg = JSON.parse(ev.data);
+        if (!msg || typeof msg !== 'object') return;
+          if (msg.type === 'set-buildings') {
+            if (window.__MAP_READY__) {
+              addCustomBuildings(msg.payload || [], campusUnion);
+              toggle2DLayersForPitch();
+            } else {
+              __PENDING_BUILDINGS__ = msg.payload || [];
+            }
+          } else if (msg.type === 'set-flags') {
+            const f = msg.payload || {};
+            if (!window.__MAP_READY__) { __PENDING_FLAGS__ = f; return; }
+            if (typeof f.maskOutside === 'boolean') window.setMaskOutside(f.maskOutside);
+            if (typeof f.showOsmBuildings === 'boolean') window.setShowOsmBuildings(f.showOsmBuildings);
+          }
+        }catch(e){}
+      }
+      document.addEventListener('message', handleBridgeMessage);
+      window.addEventListener('message', handleBridgeMessage);
+
       function setupMap(){
         const pitch0 = (INITIAL_VIEW === 'topdown') ? 0 : OBLIQUE_PITCH;
         const bearing0 = 0;
@@ -245,7 +294,7 @@ const campusUnion = unionAll(CAMPUS_NORM);
 
         const boundsForPan = (function(){
           if (!campusUnion) return null;
-          if (PAN_MODE === 'free') return null; // <- sin maxBounds en 'free'
+          if (PAN_MODE === 'free') return null;
           const base = turf.buffer(campusUnion, BUFFER_M + (PAN_MODE === 'soft' ? SOFT_EXTRA_M : 0), { units:'meters' });
           const bb = turf.bbox(base);
           return [[bb[0],bb[1]],[bb[2],bb[3]]];
@@ -269,9 +318,9 @@ const campusUnion = unionAll(CAMPUS_NORM);
           }
 
           try {
-            const baseBuffer2 = CAMPUS_NORM || null;
-            if (baseBuffer2) {
-              map.addSource('mask-campus', { type:'geojson', data: baseBuffer2 });
+            const baseMask = CAMPUS_NORM || null;
+            if (baseMask) {
+              map.addSource('mask-campus', { type:'geojson', data: baseMask });
 
               const firstSymbol = (() => {
                 const layers = map.getStyle().layers || [];
@@ -279,45 +328,37 @@ const campusUnion = unionAll(CAMPUS_NORM);
                 return sym?.id;
               })();
 
-
-              //COLOR Y OPACIDAD DEL MASK
-
-
               map.addLayer({
                 id: 'mask-campus-fill',
                 type: 'fill',
                 source: 'mask-campus',
-                paint: {
-                  'fill-color': '#F4F1EA',
-                  'fill-opacity': 1.0
-                },
+                paint: { 'fill-color': '#F4F1EA', 'fill-opacity': 1.0 },
                 layout: { visibility: MASK_OUTSIDE_INIT ? 'visible' : 'none' }
               }, firstSymbol);
             }
           } catch(e){}
 
           map.addSource('campus', { type:'geojson', data: CAMPUS_NORM });
-          map.addLayer({
-            id:'campus-labels', type:'symbol', source:'campus',
-            layout:{ 'text-field':['get','name'], 'text-size':13, 'text-anchor':'center' },
-            paint:{ 'text-color':'#111','text-halo-color':'#fff','text-halo-width':1.2 }
-          });
 
-          // Edificios/zones custom
+          // Solo agrega el label del campus si el flag inicial lo permite
+          if (typeof SHOW_CAMPUS_LABEL_INIT === 'undefined' || SHOW_CAMPUS_LABEL_INIT) {
+            map.addLayer({
+              id:'campus-labels', type:'symbol', source:'campus',
+              layout:{ 'text-field':['get','name'], 'text-size':13, 'text-anchor':'center' },
+              paint:{ 'text-color':'#111','text-halo-color':'#fff','text-halo-width':1.2 }
+            });
+          }
+
+          // Edificios/zones custom (semilla inicial)
           addCustomBuildings(CUSTOM_BUILDINGS, campusUnion);
 
           if (fitBB) {
             map.fitBounds([[fitBB[0],fitBB[1]],[fitBB[2],fitBB[3]]], { padding: 40, maxZoom: 19, duration: 0 });
           }
 
-          function update2DLayersVisibility(){
-            const vis = map.getPitch() <= 5 ? 'visible' : 'none';
-            ['custom-2d','custom-outline','custom-areas-fill','custom-areas-outline'].forEach(id=>{
-              if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
-            });
-          }
-          update2DLayersVisibility();
-          map.on('pitchend', update2DLayersVisibility);
+          // Alterna 2D/3D según pitch
+          toggle2DLayersForPitch();
+          map.on('pitchend', toggle2DLayersForPitch);
 
           // === MARCADOR: Flecha ===
           const el = document.createElement('div');
@@ -346,9 +387,16 @@ const campusUnion = unionAll(CAMPUS_NORM);
 
           window.setPanMode = function(mode){
             try{
-              const bounds = computePanBounds(mode);
-              map.setMaxBounds(bounds ? bounds : null);
+              const bounds = (function(){
+                if (!campusUnion) return null;
+                if (mode === 'free') return null;
+                const base = turf.buffer(campusUnion, BUFFER_M + (mode === 'soft' ? SOFT_EXTRA_M : 0), { units:'meters' });
+                const bb = turf.bbox(base);
+                return [[bb[0],bb[1]],[bb[2],bb[3]]];
+              })();
+
               if (bounds) {
+                map.setMaxBounds(bounds);
                 const c = map.getCenter();
                 const lngLat = [c.lng, c.lat];
                 const [[w,s],[e,n]] = bounds;
@@ -388,10 +436,25 @@ const campusUnion = unionAll(CAMPUS_NORM);
           };
 
           window.addBuildings = function(defs){ addCustomBuildings(defs || [], campusUnion); };
+
+          // Aplica flags/pendientes
+          if (__PENDING_BUILDINGS__) {
+            addCustomBuildings(__PENDING_BUILDINGS__, campusUnion);
+            __PENDING_BUILDINGS__ = null;
+          }
+          if (__PENDING_FLAGS__) {
+            const f = __PENDING_FLAGS__;
+            if (typeof f.maskOutside === 'boolean') window.setMaskOutside(f.maskOutside);
+            if (typeof f.showOsmBuildings === 'boolean') window.setShowOsmBuildings(f.showOsmBuildings);
+            __PENDING_FLAGS__ = null;
+          }
+
+          // Estado inicial de showOsmBuildings (si aplica)
+          try { window.setShowOsmBuildings(SHOW_OSM_BUILDINGS_INIT); } catch {}
         });
       }
 
       setupMap();
     </script>
-  `);
+  `;
 }

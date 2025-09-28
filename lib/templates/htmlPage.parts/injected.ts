@@ -1,6 +1,4 @@
 // lib/templates/htmlPage.parts/injected.ts
-import { dedent } from './utils';
-
 export type InjectParams = {
   campusData: any;
   styleJSON: any;
@@ -12,11 +10,15 @@ export type InjectParams = {
   initialView: 'topdown' | 'oblique';
   obliquePitch: number;
   arrowColor: string;
-  /** Puedes pasarlo si quieres forzar otra expresión; si no, lo calculamos aquí. */
+  /** Puedes pasarlo si quieres forzar otra expresión; si no, se calcula aquí. */
   heightExpr?: any;
   buildings: any;
   vertexOrder: 'cw' | 'ccw' | 'auto';
   floorHeightM: number;
+  /** Mostrar/ocultar edificios del estilo base (si el estilo los tuviera) */
+  showOsmBuildings?: boolean;
+  /** Mostrar/ocultar el label del campus */
+  showCampusLabel?: boolean;
 };
 
 export function renderInjected(p: InjectParams) {
@@ -25,7 +27,7 @@ export function renderInjected(p: InjectParams) {
     ? p.floorHeightM
     : 3.2;
 
-    // Regla con prioridad:
+  // Regla con prioridad:
   // 1) levels * height (si ambos existen y levels > 0)  -> height = alto por piso
   // 2) levels * floorH (si levels > 0 y no hay height)
   // 3) height (si no hay levels)
@@ -48,8 +50,10 @@ export function renderInjected(p: InjectParams) {
     6
   ];
 
+  const showOsm = !!p.showOsmBuildings;
+  const showCampusLabel = !!p.showCampusLabel;
 
-  return dedent(`
+  return `
     <script>
       // ===== Datos inyectados =====
       const CAMPUS = ${JSON.stringify(p.campusData)};
@@ -66,6 +70,8 @@ export function renderInjected(p: InjectParams) {
       const CUSTOM_BUILDINGS = ${JSON.stringify(p.buildings)};
       const VERTEX_ORDER = ${JSON.stringify(p.vertexOrder)};
       const FLOOR_HEIGHT_M = ${JSON.stringify(floorH)};
+      const SHOW_OSM_BUILDINGS_INIT = ${JSON.stringify(showOsm)};
+      const SHOW_CAMPUS_LABEL_INIT = ${JSON.stringify(showCampusLabel)};
 
       let map, playerMarker;
 
@@ -74,7 +80,11 @@ export function renderInjected(p: InjectParams) {
       let INITIAL_VIEW_RT = INITIAL_VIEW;
       let MASK_VISIBLE_RT = MASK_OUTSIDE_INIT;
 
+      // Buffer mensajes si llegan antes del load
+      let __PENDING_BUILDINGS__ = null;
+      let __PENDING_FLAGS__ = null;
+
       console.log('CUSTOM_BUILDINGS count:', (CUSTOM_BUILDINGS||[]).length);
     </script>
-  `);
+  `;
 }

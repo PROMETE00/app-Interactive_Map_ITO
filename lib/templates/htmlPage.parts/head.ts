@@ -1,8 +1,6 @@
 // lib/templates/htmlPage.parts/head.ts
-import { dedent } from './utils';
-
 export function renderHead(arrowColor: string) {
-  return dedent(`
+  return `
     <!doctype html>
     <html>
     <head>
@@ -24,5 +22,5 @@ export function renderHead(arrowColor: string) {
       <div class="err" id="err"></div>
       <script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
       <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-  `);
+  `;
 }

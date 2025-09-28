@@ -1,4 +1,3 @@
-// Exporta tipos para el resto de la app
 export * from './types';
 
 import type { BuildingDef } from './types';
@@ -23,7 +22,7 @@ import LaboratorioMicroscopia from './defs/22.-1-ito-Laboratorio-Microscopia';
 import SalaTitulacion from './defs/22.-2-ito-Sala-Titulacion';
 import AulaDibujo from './defs/22.-3-ito-Aula-Dibujo';
 import EdificioB from './defs/23-ito-Edificio-B';
-import LabFisicoQuimica from './defs/24-ito-Lab-FisicoQuimica';
+import LaboratorioFisicoQuimica from './defs/24-ito-Lab-FisicoQuimica';
 import EdificioL from './defs/25-ito-Edificio-L';
 import AulasO from './defs/26.-ito-Aulas-O';
 import AulasP from './defs/27.-ito-Aulas-P';
@@ -72,76 +71,183 @@ import Ingles1 from './defs/ito-Ingles1';
 import Ingles2 from './defs/ito-Ingles2';
 import IntermedioServiciosEscolares from './defs/ito-Intermedio-ServiciosEscolares-DivisionEstudios';
 
-export const campusPrincipal = [
-  Biblioteca,
-  EdificioL,
-  LaboratorioQuimicaPesada,
-  LaboratorioCivil,
-  DepartamentoCienciasDeLaTierra,
-  AulaAC,
-  CentroComputo,
-  DepartamentoQuimicaBioquimicaIndustrial,
-  AulaNN,
-  Gimnasio,
-  LabFisicoQuimica,
-  Doctorado,
-  EdificioB,
-  EdificioElectronica,
-  Ingles1,
-  Ingles2,
-  EdificioQ,
-  LaboratorioIndustrial,
-  AulaK,
-  Aulas1s4,
-  EdificioI,
-  EdificioJ,
-  AudiovisualLicenciatura,
-  DepartamentoCienciasEconomicoAdministrativas,
-  AulaTipo,
-  MAdministracion,
-  EdificioG,
-  EdificioF,
-  EdificioE,
-  CafeITO,
-  ServicioMedico,
-  EdificioH,
-  CoordinacionLenguas,
-  Cesa,
-  LaboratorioDepartamentoMecanica,
-  Bannos,
-  Asesorias,
-  LaboratorioSimulacion,
-  Caldera,
-  DEPIPosgrado,
-  LaboratorioElectrica,
-  MDocencia,
-  DepartamentoElectronica,
-  Conacyt,
-  MConstruccion,
-  Seccion61,
-  EdificioA,
-  AudiovisualIngenieria,
-  AulaAM,
-  DesarrolloAcademico,
-  AulaSUM,
-  LaboratorioMicroscopia,
-  SalaTitulacion,
-  AulaDibujo,
-  EdificioC,
-  AulasO,
-  AulasP,
-  CubiculosMaestros,
-  ExtraEscolares,
-  ServiciosEscolares,
-  DivisionEstudiosProfesionales,
-  IntermedioServiciosEscolares,
-  Direccion,
-  Copias,
-  CienciasBasicas,
-  PlantaTratamientoAguasResiduales,
-] satisfies BuildingDef[];
+export const Aulas = validateBuildings([
+AulaNN,
+AulaAC,
+EdificioA,
+EdificioB,
+EdificioL,
+AulasO,
+AulasP,
+EdificioC,
+AulaAM,
+EdificioQ,
+EdificioE,
+EdificioH,
+EdificioF,
+EdificioG,
+AulaK,
+Aulas1s4,
+EdificioJ,
+AulaTipo,
+EdificioI,
+AulaSUM,
+AulaDibujo,
+EdificioElectronica,
+] satisfies BuildingDef[]);
+
+export const Departamentos = validateBuildings([
+DepartamentoQuimicaBioquimicaIndustrial,
+CentroComputo,
+DepartamentoElectronica,
+DepartamentoCienciasDeLaTierra,
+DepartamentoCienciasEconomicoAdministrativas,
+//LaboratorioDepartamentoMecanica,
+CienciasBasicas,
+] satisfies BuildingDef[]);
+
+export const Audiovisuales = validateBuildings([
+AudiovisualIngenieria,
+AudiovisualLicenciatura,
+] satisfies BuildingDef[]);
+
+export const Laboratorios = validateBuildings([
+LaboratorioSimulacion,
+LaboratorioElectrica,
+LaboratorioDepartamentoMecanica,
+LaboratorioQuimicaPesada,
+LaboratorioCivil,
+LaboratorioMicroscopia,
+LaboratorioFisicoQuimica,
+LaboratorioIndustrial,
+] satisfies BuildingDef[]);
+
+export const Maestrias = validateBuildings([
+MDocencia,
+MConstruccion,
+MAdministracion,
+] satisfies BuildingDef[]);
+
+export const Escolares = validateBuildings([
+ServiciosEscolares,
+DivisionEstudiosProfesionales,
+IntermedioServiciosEscolares,
+Direccion,
+ExtraEscolares,
+DesarrolloAcademico,
+] satisfies BuildingDef[]);
+
+export const otherBuildings = validateBuildings([
+Copias,
+PlantaTratamientoAguasResiduales,
+Cesa,
+Caldera,
+Conacyt,
+Seccion61,
+] satisfies BuildingDef[]);
+
+export const TitulacionBuilding = validateBuildings([
+SalaTitulacion,
+] satisfies BuildingDef[]);
+
+export const LenguasExtranjeras = validateBuildings([
+CoordinacionLenguas,
+Ingles1,
+Ingles2,
+] satisfies BuildingDef[]);
+
+export const Comida = validateBuildings([
+CafeITO,
+] satisfies BuildingDef[]);
+
+export const BibliotecaBuilding = validateBuildings([
+Biblioteca,
+] satisfies BuildingDef[]);
+
+export const GimnasioBuilding = validateBuildings([
+Gimnasio,
+] satisfies BuildingDef[]);
+
+export const BannosBuilding = validateBuildings([
+Bannos,
+] satisfies BuildingDef[]);
+
+export const ServiciosMedicosBuilding = validateBuildings([
+ServicioMedico,
+] satisfies BuildingDef[]);
+
+export const AreasVerdes = validateBuildings([
+// EspaciosVerdes,
+] satisfies BuildingDef[]);
+
+export const AsesoriasBuilding = validateBuildings([
+Asesorias,
+] satisfies BuildingDef[]);
+
+export const PosgradoBuildings = validateBuildings([
+Doctorado,
+DEPIPosgrado,
+CubiculosMaestros,
+] satisfies BuildingDef[]);
+
+// ==== Catálogo, tipos y utilidades de visibilidad ====
+export const buildingCatalog = {
+  Aulas,
+  Departamentos,
+  Audiovisuales,
+  Laboratorios,
+  Maestrias,
+  Escolares,
+  otherBuildings,
+  TitulacionBuilding,
+  LenguasExtranjeras,
+  Comida,
+  BibliotecaBuilding,
+  GimnasioBuilding,
+  BannosBuilding,
+  ServiciosMedicosBuilding,
+  AreasVerdes,
+  AsesoriasBuilding,
+  PosgradoBuildings,
+} as const;
+
+export type BuildingCategory = keyof typeof buildingCatalog;
+export const allCategories = Object.keys(buildingCatalog) as BuildingCategory[];
+
+/** Mezcla las capas visibles en un solo arreglo de edificios */
+export function mergeBuildings(
+  visibility: Partial<Record<BuildingCategory, boolean>>
+): BuildingDef[] {
+  const seen = new Map<string, { cat: BuildingCategory; b: BuildingDef }>();
+  const out: BuildingDef[] = [];
+
+  (Object.keys(buildingCatalog) as BuildingCategory[]).forEach(cat => {
+    if (!visibility[cat]) return;
+    for (const b of buildingCatalog[cat]) {
+      const prev = seen.get(b.id);
+      if (!prev) {
+        seen.set(b.id, { cat, b });
+        out.push(b);
+      } else {
+        // No rompas la app, solo avisa; conserva la primera ocurrencia
+        if (typeof console !== 'undefined') {
+          console.warn(
+            `[buildings] Duplicado "${b.id}" en categoría "${cat}" (ya estaba en "${prev.cat}"). ` +
+            `Se conservará la primera ocurrencia.`
+          );
+        }
+      }
+    }
+  });
+
+  return validateBuildings(out);
+}
 
 
-export const customBuildings: BuildingDef[] = validateBuildings([
-  ...campusPrincipal,
-]);
+/** Visibilidad por defecto: todas encendidas */
+export const defaultVisibility: Record<BuildingCategory, boolean> =
+  Object.fromEntries(allCategories.map(c => [c, true])) as Record<BuildingCategory, boolean>;
+
+// (Opcional) tu "customBuildings" por defecto ahora puede ser todas encendidas:
+export const customBuildings: BuildingDef[] = mergeBuildings(defaultVisibility);
+

@@ -1,7 +1,7 @@
-// components/MapNavbar.tsx
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import type { BuildingCategory } from './buildings'; // ajusta la ruta si tu index está en otro lado
 
 type Basemap = 'positron' | 'voyager' | 'dark' | 'osm';
 type PanMode = 'free' | 'locked' | 'soft';
@@ -21,12 +21,20 @@ type Props = {
   basemap?: Basemap;
   onChangeBasemap?: (b: Basemap) => void;
 
-  // NUEVOS: switches de capas
+  // switches existentes
   showOsmBuildings: boolean;
   onToggleOsmBuildings: (v: boolean) => void;
 
   maskOutside: boolean;
   onToggleMaskOutside: (v: boolean) => void;
+
+  // NUEVO: control de categorías
+  categories: BuildingCategory[];
+  categoryVisibility: Record<BuildingCategory, boolean>;
+  onToggleCategory: (c: BuildingCategory, v: boolean) => void;
+  onSoloCategory: (c: BuildingCategory) => void;
+  onShowAll: () => void;
+  onHideAll: () => void;
 };
 
 const DARK_BG = '#111827'; // gris muy oscuro
@@ -44,6 +52,8 @@ export default function MapNavbar({
   arrowColor, onChangeArrowColor,
   showOsmBuildings, onToggleOsmBuildings,
   maskOutside, onToggleMaskOutside,
+  categories, categoryVisibility, onToggleCategory,
+  onSoloCategory, onShowAll, onHideAll,
 }: Props) {
   const [panel, setPanel] = useState<null | 'pan' | 'view' | 'color' | 'layers'>(null);
 
@@ -90,6 +100,19 @@ export default function MapNavbar({
     </Pressable>
   );
 
+  const SmallBtn = ({ label, onPress }: { label: string; onPress: () => void }) => (
+    <Pressable
+      onPress={onPress}
+      style={{
+        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+        backgroundColor: '#374151', marginLeft: 6,
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+      }}
+    >
+      <Text style={{ color: TEXT, fontWeight: '700' }}>{label}</Text>
+    </Pressable>
+  );
+
   const ColorDot = ({ color, active, onPress }: { color: string; active: boolean; onPress: () => void }) => (
     <Pressable
       onPress={onPress}
@@ -101,11 +124,11 @@ export default function MapNavbar({
     />
   );
 
-  // Pequeño componente para dos opciones ON/OFF en fila
+  // Dos opciones ON/OFF en fila
   const ToggleRow = ({
     label, value, onChange,
   }: { label: string; value: boolean; onChange: (v: boolean) => void }) => (
-    <View style={{ marginBottom: 10 }}>
+    <View style={{ marginBottom: 12 }}>
       <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 8 }}>{label}</Text>
       <View style={{ flexDirection: 'row' }}>
         <Pill label="ON" active={value === true} onPress={() => onChange(true)} />
@@ -114,7 +137,7 @@ export default function MapNavbar({
     </View>
   );
 
-  // Panel flotante (aparece pegado arriba a la derecha de la barra)
+  // Panel flotante
   const Panel = () => {
     if (!panel) return null;
 
@@ -125,7 +148,7 @@ export default function MapNavbar({
           onPress={() => setPanel(null)}
           style={{
             position: 'absolute', left: 0, right: 0,
-            top: 0, bottom: 72, // evita tapar la barra
+            top: 0, bottom: 72,
           }}
         />
 
@@ -133,9 +156,9 @@ export default function MapNavbar({
           style={{
             position: 'absolute',
             right: 12,
-            bottom: 72 + 8, // 8px de separación por encima de la barra
-            minWidth: 220,
-            maxWidth: 340,
+            bottom: 72 + 8,
+            minWidth: 260,
+            maxWidth: 360,
             borderRadius: 14,
             backgroundColor: DARK_PANEL,
             padding: 12,
@@ -195,14 +218,51 @@ export default function MapNavbar({
           )}
 
           {panel === 'layers' && (
-            <>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
               <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 12 }}>Capas</Text>
+
+              {/* Toggles del mapa base */}
               <ToggleRow
-                label="Capa Inferior OSM"
+                label="Edificios OSM"
+                value={showOsmBuildings}
+                onChange={(v) => { onToggleOsmBuildings(v); }}
+              />
+              <ToggleRow
+                label="Enmascarar fuera del campus"
                 value={maskOutside}
                 onChange={(v) => { onToggleMaskOutside(v); }}
               />
-            </>
+
+              {/* Categorías personalizadas */}
+              <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 10 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                <Text style={{ color: TEXT, fontWeight: '800', marginRight: 8 }}>Categorías</Text>
+                <SmallBtn label="Todos" onPress={onShowAll} />
+                <SmallBtn label="Ninguno" onPress={onHideAll} />
+              </View>
+
+              {categories.map(cat => {
+                const on = !!categoryVisibility[cat];
+                return (
+                  <View
+                    key={cat}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 6,
+                    }}
+                  >
+                    <Text style={{ color: TEXT, fontWeight: '700', marginRight: 10 }}>{cat}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Pill label="ON" active={on} onPress={() => onToggleCategory(cat, true)} />
+                      <Pill label="OFF" active={!on} onPress={() => onToggleCategory(cat, false)} />
+                      <SmallBtn label="SOLO" onPress={() => onSoloCategory(cat)} />
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
           )}
         </View>
       </>
@@ -214,14 +274,12 @@ export default function MapNavbar({
       style={{
         position: 'absolute',
         left: 0, right: 0, bottom: 0,
-        // contenedor deja pasar taps salvo en sus hijos
         pointerEvents: 'box-none',
       }}
     >
       <Panel />
 
       <View
-        // la barra sí recibe los toques
         pointerEvents="auto"
         style={{
           margin: 12,
@@ -231,7 +289,6 @@ export default function MapNavbar({
           flexDirection: 'row',
           alignItems: 'center',
           paddingHorizontal: 8,
-          // alinear iconos a la derecha para que el panel quede coherente
           justifyContent: 'flex-end',
           shadowColor: '#000',
           shadowOpacity: 0.25,
@@ -240,7 +297,6 @@ export default function MapNavbar({
           elevation: 8,
         }}
       >
-        {/* Iconos: solo iconos, sin texto */}
         <IconBtn
           label="Modo panorámico"
           active={panel === 'pan'}

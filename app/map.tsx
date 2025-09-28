@@ -5,9 +5,17 @@ import { ActivityIndicator, View } from 'react-native';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { WebView } from 'react-native-webview';
 
-import { ITO_CAMPUS_FC } from '@/components/buildings/ito-campus-mask'; // <– NUEVO: tu polígono para pintar la capa
-import campus from '../assets/geo/campus.json'; // <– se conserva (solo para center de fallback)
-import { customBuildings } from '../components/buildings';
+import { ITO_CAMPUS_FC } from '@/components/buildings/ito-campus-mask'; // Polígono del campus para la máscara
+import campus from '../assets/geo/campus.json'; // Solo para center de respaldo
+
+// === NUEVO: catálogo y utilidades de categorías ===
+import {
+  allCategories,
+  defaultVisibility,
+  mergeBuildings,
+  type BuildingCategory,
+} from '../components/buildings';
+
 import MapNavbar from '../components/MapNavbar';
 import { htmlPage } from '../lib/htmlPage';
 
@@ -42,18 +50,18 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 export default function MapScreen() {
-  // Usamos el campus.json SOLO para calcular centro de respaldo
+  // Centro de respaldo desde campus.json
   const campusCenter = useMemo(() => getGeojsonCenter(campus), []);
   const [center, setCenter] = useState<Center | null>(null);
   const webRef = useRef<WebViewType>(null);
 
   // ====== Config inicial (sólo para el primer render del mapa) ======
   const BASEMAP: Basemap = 'voyager';
-  const PANORAMICMODE_INIT: PanMode = 'locked';
+  const PANORAMICMODE_INIT: PanMode = 'free';
   const INITIAL_VIEW_INIT: InitialView = 'topdown';
 
   // switches iniciales
-  const SHOW_OSM_INIT = false;     // false => basemap sin edificios
+  const SHOW_OSM_INIT = false;     // false => basemap sin edificios OSM
   const MASK_OUTSIDE_INIT = false; // true => enmascara fuera del campus
 
   const ARROW_COLOR_INIT = '#2563eb';
@@ -67,6 +75,17 @@ export default function MapScreen() {
   const [showOsmBuildings, setShowOsmBuildings] = useState<boolean>(SHOW_OSM_INIT);
   const [maskOutside, setMaskOutside] = useState<boolean>(MASK_OUTSIDE_INIT);
 
+  // ====== NUEVO: visibilidad por categorías ======
+  const [catVis, setCatVis] = useState<Record<BuildingCategory, boolean>>(defaultVisibility);
+  const categories = allCategories;
+
+  // Edificios visibles (resultado de mezclar categorías encendidas)
+  const visibleBuildings = useMemo(
+    () => mergeBuildings(catVis),
+    [catVis]
+  );
+
+  // ====== Permisos + ubicación usuario ======
   useEffect(() => {
     let cancelled = false;
     let sub: Location.LocationSubscription | null = null;
@@ -118,32 +137,58 @@ export default function MapScreen() {
     return () => { cancelled = true; sub?.remove(); };
   }, [campusCenter]);
 
-  // ====== HTML inicial del WebView (no depende del estado vivo) ======
-  const initialHtml = useMemo(() => {
-    if (!center) return '<html></html>';
-    return htmlPage(
-      center,
-      ITO_CAMPUS_FC, // 👈 AHORA la capa del campus usa tu polígono local, NO el assets/geo/campus.json
-      {
-        bufferM: 250,
-        basemap: BASEMAP,
-        panMode: PANORAMICMODE_INIT, // sólo valor inicial
-        softExtraM: 150,
-        maskOutside: MASK_OUTSIDE_INIT,   // sólo valor inicial
-        initialView: INITIAL_VIEW_INIT,   // sólo valor inicial
-        obliquePitch: 60,
-        showOsmBuildings: SHOW_OSM_INIT,  // sólo valor inicial
-        arrowColor: ARROW_COLOR_INIT,     // sólo valor inicial
-        vertexOrder: 'cw',
-        floorHeightM: 3.2
-      },
-      customBuildings
-    );
-  }, [center]);
+  // ====== HTML inicial del WebView (se inyecta una vez) ======
+const initialHtml = useMemo(() => {
+  if (!center) return '<html></html>';
+  return htmlPage(
+    center,
+    ITO_CAMPUS_FC,
+    {
+      bufferM: 250,
+      basemap: 'voyager',
+      panMode: 'locked',
+      softExtraM: 150,
+      maskOutside: false,
+      initialView: 'topdown',
+      obliquePitch: 60,
+      showOsmBuildings: false,
+      arrowColor: '#2563eb',
+      vertexOrder: 'cw',
+      floorHeightM: 3.2,
+      // 🔻 nuevos flags
+      showBasemapLabels: false,
+      showCampusLabel: false,
+    },
+    visibleBuildings
+  );
+}, [center]);
+
 
   const webSource = useMemo(() => ({ html: initialHtml }), [initialHtml]);
 
-  // ====== Handlers Navbar → inyección JS (sin recargar WebView) ======
+  // ====== Push dinámico de datos al WebView (sin recargar) ======
+
+  // 1) Enviar edificios visibles cuando cambien las categorías
+  useEffect(() => {
+    const msg = JSON.stringify({ type: 'set-buildings', payload: visibleBuildings });
+    webRef.current?.postMessage(msg);
+  }, [visibleBuildings]);
+
+  // 2) Enviar flags (OSM y máscara) cuando cambien
+  useEffect(() => {
+    const flags = { showOsmBuildings, maskOutside };
+    webRef.current?.postMessage(JSON.stringify({ type: 'set-flags', payload: flags }));
+
+    // Compatibilidad si tu HTML expone funciones imperativas:
+    webRef.current?.injectJavaScript(
+      `try{
+        if(window.setShowOsmBuildings) window.setShowOsmBuildings(${showOsmBuildings});
+        if(window.setMaskOutside) window.setMaskOutside(${maskOutside});
+      }catch(e){}; true;`
+    );
+  }, [showOsmBuildings, maskOutside]);
+
+  // ====== Handlers Navbar → funciones (además de setState) ======
   const handleChangePanMode = (mode: PanMode) => {
     setPanMode(mode);
     webRef.current?.injectJavaScript(`window.setPanMode && window.setPanMode(${JSON.stringify(mode)}); true;`);
@@ -159,19 +204,14 @@ export default function MapScreen() {
     webRef.current?.injectJavaScript(`window.setArrowColor && window.setArrowColor(${JSON.stringify(hex)}); true;`);
   };
 
-  // ==== NUEVO: switches de edificios OSM y máscara ====
   const handleToggleOsmBuildings = (value: boolean) => {
     setShowOsmBuildings(value);
-    webRef.current?.injectJavaScript(
-      `window.setShowOsmBuildings && window.setShowOsmBuildings(${value}); true;`
-    );
+    // postMessage ya se dispara por el useEffect de flags
   };
 
   const handleToggleMaskOutside = (value: boolean) => {
     setMaskOutside(value);
-    webRef.current?.injectJavaScript(
-      `window.setMaskOutside && window.setMaskOutside(${value}); true;`
-    );
+    // postMessage ya se dispara por el useEffect de flags
   };
 
   if (!center) {
@@ -194,6 +234,8 @@ export default function MapScreen() {
         allowFileAccess
         allowUniversalAccessFromFileURLs
         source={webSource}
+        // Si tu html manda mensajes (clicks, etc.), maneja aquí:
+        // onMessage={(e) => { const msg = JSON.parse(e.nativeEvent.data); ... }}
       />
 
       <MapNavbar
@@ -204,11 +246,25 @@ export default function MapScreen() {
         arrowColor={arrowColor}
         onChangeArrowColor={handleChangeArrowColor}
 
-        // ===== NUEVOS props para los switches =====
+        // Switches de capas base
         showOsmBuildings={showOsmBuildings}
         onToggleOsmBuildings={handleToggleOsmBuildings}
         maskOutside={maskOutside}
         onToggleMaskOutside={handleToggleMaskOutside}
+
+        // === NUEVO: control de categorías ===
+        categories={categories}
+        categoryVisibility={catVis}
+        onToggleCategory={(c, v) => setCatVis(prev => ({ ...prev, [c]: v }))}
+        onSoloCategory={(c) =>
+          setCatVis(Object.fromEntries(categories.map(k => [k, k === c])) as Record<BuildingCategory, boolean>)
+        }
+        onShowAll={() =>
+          setCatVis(Object.fromEntries(categories.map(k => [k, true])) as Record<BuildingCategory, boolean>)
+        }
+        onHideAll={() =>
+          setCatVis(Object.fromEntries(categories.map(k => [k, false])) as Record<BuildingCategory, boolean>)
+        }
       />
     </>
   );
