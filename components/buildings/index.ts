@@ -5,6 +5,11 @@ import type { BuildingDef } from './types';
 import { validateBuildings } from './validate';
 
 
+import Asesorias from './defs/1.-ito-Asesorias';
+import Conacyt from './defs/10.-ito-Conacyt';
+import MConstruccion from './defs/11.-ito-M-Construccion';
+import DepartamentoElectronica from './defs/12.-ito-Departamento-Electronica';
+import MDocencia from './defs/13.-ito-M-Docencia';
 import LaboratorioDepartamentoMecanica from './defs/14-ito-Laboratorio-Departamento-Mecanica';
 import LaboratorioQuimicaPesada from './defs/15-ito-Laboratorio-QuimicaPesada';
 import LaboratorioCivil from './defs/16-ito-Laboratorio-Civil';
@@ -12,25 +17,31 @@ import DepartamentoCienciasDeLaTierra from './defs/17-ito-Departamento-CienciasD
 import AulaAC from './defs/18-ito-Aula-Ac';
 import EdificioElectronica from './defs/19-ito-Edificio-Electronica';
 import DepartamentoQuimicaBioquimicaIndustrial from './defs/2-ito-Departamento-Quimica-Bioquimica-Industrial';
+import Seccion61 from './defs/20.-ito-Seccion61';
+import EdificioA from './defs/21.-itoEdificio-A';
 import EdificioB from './defs/23-ito-Edificio-B';
 import LabFisicoQuimica from './defs/24-ito-Lab-FisicoQuimica';
 import EdificioL from './defs/25-ito-Edificio-L';
+import AudiovisualIngenieria from './defs/28-ito-Audiovisual-Ingenieria';
 import AulaNN from './defs/3-ito-AulaNN';
 import Biblioteca from './defs/32-ito-Biblioteca';
 import Gimnasio from './defs/33-ito-Gimnasio';
 import CafeITO from './defs/37-ito-Cafe-ITO';
 import EdificioQ from './defs/39-ito-Edificio-Q';
+import LaboratorioSimulacion from './defs/4.-ito-LaboratorioSimulacion';
 import EdificioE from './defs/42-ito-Edificio-E';
 import LaboratorioIndustrial from './defs/43-ito-Laboratorio-Industrial';
 import ServicioMedico from './defs/44-1-ito-Servicio-Medico';
 import EdificioH from './defs/44-2-3-ito-Edificio-H';
 import CoordinacionLenguas from './defs/44-4-ito-Coordinacion-Lenguas';
 import Cesa from './defs/44-5-ito-Cesa';
+import Bannos from './defs/44-6-Bannos-Edificio-H';
 import EdificioF from './defs/45-ito-Edificio-F';
 import AudiovisualLicenciatura from './defs/46-ito-Audiovisual-Licenciatura';
 import EdificioG from './defs/47-ito-Edificio-G';
 import AulaK from './defs/48-ito-Aula-k';
 import Aulas1s4 from './defs/49-ito-Aula-s1-s4';
+import Caldera from './defs/5-ito-Caldera';
 import EdificioJ from './defs/50-1-ito-Edificio-J';
 import DepartamentoCienciasEconomicoAdministrativas from './defs/50-2-ito-Departamento-Ciencias-Economico-Administrativas';
 import MAdministracion from './defs/51-ito-M-Administracion';
@@ -38,8 +49,11 @@ import AulaTipo from './defs/52-ito-Aula-Tipo';
 import EdificioI from './defs/53-ito-Edificio-I';
 import CentroComputo from './defs/6-ito-CentroDeConmputo-SistemasComputacionales';
 import Doctorado from './defs/7-ito-Doctorado';
+import DEPIPosgrado from './defs/8.-ito-DEPI-Posgrado';
+import LaboratorioElectrica from './defs/9.-ito-Laboratorio-Electrica';
 import Ingles1 from './defs/ito-Ingles1';
 import Ingles2 from './defs/ito-Ingles2';
+
 
 export const campusPrincipal = [
   Biblioteca,
@@ -77,6 +91,19 @@ export const campusPrincipal = [
   CoordinacionLenguas,
   Cesa,
   LaboratorioDepartamentoMecanica,
+  Bannos,
+  Asesorias,
+  LaboratorioSimulacion,
+  Caldera,
+  DEPIPosgrado,
+  LaboratorioElectrica,
+  MDocencia,
+  DepartamentoElectronica,
+  Conacyt,
+  MConstruccion,
+  Seccion61,
+  EdificioA,
+  AudiovisualIngenieria,
 ] satisfies BuildingDef[];
 
 
