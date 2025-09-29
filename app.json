@@ -11,12 +11,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.appMobilev1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Mostramos tu ubicación para guiarte dentro del campus."
       }
     },
     "android": {
       "package": "com.anonymous.appMobilev1",
+      "versionCode": 2,
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -47,14 +49,10 @@
         }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
+    "experiments": { "typedRoutes": true },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "ac3bbe91-7ceb-4f1d-8e16-9d2ba627a71f"
-      }
+      "eas": { "projectId": "ac3bbe91-7ceb-4f1d-8e16-9d2ba627a71f" }
     }
   }
 }

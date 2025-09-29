@@ -226,36 +226,11 @@ export function renderRuntimeScript() {
         });
       }
 
-      // ===== Mostrar/Ocultar edificios del estilo base (si existieran) =====
-      function setShowOsmBuildings(on){
-        try{
-          const style = map.getStyle();
-          const layers = style?.layers || [];
-          const ids = layers
-            .filter(l => {
-              const id = (l.id||'').toLowerCase();
-              const sl = (l['source-layer']||'').toLowerCase();
-              return id.includes('building') || sl.includes('building');
-            })
-            .map(l => l.id);
-
-          if (!ids.length) {
-            console.log('[showOsmBuildings] No se detectaron capas "building" en el estilo base (raster).');
-            return;
-          }
-          const v = on ? 'visible' : 'none';
-          ids.forEach(id => {
-            try { map.setLayoutProperty(id, 'visibility', v); } catch {}
-          });
-        } catch(e) {}
-      }
-      window.setShowOsmBuildings = setShowOsmBuildings;
-
       // ===== Bridge RN WebView =====
       function handleBridgeMessage(ev){
         try{
           const msg = JSON.parse(ev.data);
-        if (!msg || typeof msg !== 'object') return;
+          if (!msg || typeof msg !== 'object') return;
           if (msg.type === 'set-buildings') {
             if (window.__MAP_READY__) {
               addCustomBuildings(msg.payload || [], campusUnion);
@@ -267,7 +242,6 @@ export function renderRuntimeScript() {
             const f = msg.payload || {};
             if (!window.__MAP_READY__) { __PENDING_FLAGS__ = f; return; }
             if (typeof f.maskOutside === 'boolean') window.setMaskOutside(f.maskOutside);
-            if (typeof f.showOsmBuildings === 'boolean') window.setShowOsmBuildings(f.showOsmBuildings);
           }
         }catch(e){}
       }
@@ -294,7 +268,7 @@ export function renderRuntimeScript() {
 
         const boundsForPan = (function(){
           if (!campusUnion) return null;
-          if (PAN_MODE === 'free') return null;
+          if (PAN_MODE === 'free') return null; // <- sin maxBounds si es 'free'
           const base = turf.buffer(campusUnion, BUFFER_M + (PAN_MODE === 'soft' ? SOFT_EXTRA_M : 0), { units:'meters' });
           const bb = turf.bbox(base);
           return [[bb[0],bb[1]],[bb[2],bb[3]]];
@@ -328,6 +302,7 @@ export function renderRuntimeScript() {
                 return sym?.id;
               })();
 
+              // Capa máscara
               map.addLayer({
                 id: 'mask-campus-fill',
                 type: 'fill',
@@ -340,7 +315,7 @@ export function renderRuntimeScript() {
 
           map.addSource('campus', { type:'geojson', data: CAMPUS_NORM });
 
-          // Solo agrega el label del campus si el flag inicial lo permite
+          // Label del campus (controlado por flag)
           if (typeof SHOW_CAMPUS_LABEL_INIT === 'undefined' || SHOW_CAMPUS_LABEL_INIT) {
             map.addLayer({
               id:'campus-labels', type:'symbol', source:'campus',
@@ -385,6 +360,7 @@ export function renderRuntimeScript() {
             }catch(e){}
           };
 
+          // Mantengo por compatibilidad si decides reusar panMode
           window.setPanMode = function(mode){
             try{
               const bounds = (function(){
@@ -417,6 +393,14 @@ export function renderRuntimeScript() {
             }catch(e){}
           };
 
+          // === AÑADIDO EXACTAMENTE COMO PEDISTE ===
+          window.setPitch = function(p){
+            try{ map.easeTo({ pitch: Math.max(0, Math.min(85, +p||0)), duration: 150 }); }catch(e){}
+          };
+          window.setBearing = function(b){
+            try{ map.easeTo({ bearing: ((+b)%360+360)%360, duration: 150 }); }catch(e){}
+          };
+
           window.setMaskOutside = function(on){
             try{
               const v = on ? 'visible' : 'none';
@@ -438,19 +422,15 @@ export function renderRuntimeScript() {
           window.addBuildings = function(defs){ addCustomBuildings(defs || [], campusUnion); };
 
           // Aplica flags/pendientes
-          if (__PENDING_BUILDINGS__) {
+          if (typeof __PENDING_BUILDINGS__ !== 'undefined' && __PENDING_BUILDINGS__) {
             addCustomBuildings(__PENDING_BUILDINGS__, campusUnion);
             __PENDING_BUILDINGS__ = null;
           }
-          if (__PENDING_FLAGS__) {
+          if (typeof __PENDING_FLAGS__ !== 'undefined' && __PENDING_FLAGS__) {
             const f = __PENDING_FLAGS__;
             if (typeof f.maskOutside === 'boolean') window.setMaskOutside(f.maskOutside);
-            if (typeof f.showOsmBuildings === 'boolean') window.setShowOsmBuildings(f.showOsmBuildings);
             __PENDING_FLAGS__ = null;
           }
-
-          // Estado inicial de showOsmBuildings (si aplica)
-          try { window.setShowOsmBuildings(SHOW_OSM_BUILDINGS_INIT); } catch {}
         });
       }
 

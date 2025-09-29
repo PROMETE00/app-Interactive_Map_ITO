@@ -8,7 +8,7 @@ import { WebView } from 'react-native-webview';
 import { ITO_CAMPUS_FC } from '@/components/buildings/ito-campus-mask'; // Polígono del campus para la máscara
 import campus from '../assets/geo/campus.json'; // Solo para center de respaldo
 
-// === NUEVO: catálogo y utilidades de categorías ===
+// Catálogo y utilidades de categorías
 import {
   allCategories,
   defaultVisibility,
@@ -20,8 +20,6 @@ import MapNavbar from '../components/MapNavbar';
 import { htmlPage } from '../lib/htmlPage';
 
 type Center = { lng: number; lat: number };
-type Basemap = 'positron' | 'voyager' | 'dark' | 'osm';
-type PanMode = 'free' | 'locked' | 'soft';
 type InitialView = 'topdown' | 'oblique';
 
 function getGeojsonCenter(fc: any): Center {
@@ -55,27 +53,21 @@ export default function MapScreen() {
   const [center, setCenter] = useState<Center | null>(null);
   const webRef = useRef<WebViewType>(null);
 
-  // ====== Config inicial (sólo para el primer render del mapa) ======
-  const BASEMAP: Basemap = 'voyager';
-  const PANORAMICMODE_INIT: PanMode = 'free';
+  // ====== Config inicial (solo primer render del mapa) ======
   const INITIAL_VIEW_INIT: InitialView = 'topdown';
-
-  // switches iniciales
-  const SHOW_OSM_INIT = false;     // false => basemap sin edificios OSM
-  const MASK_OUTSIDE_INIT = false; // true => enmascara fuera del campus
-
+  const MASK_OUTSIDE_INIT = false;
   const ARROW_COLOR_INIT = '#2563eb';
 
-  // ====== Estado controlado por la navbar (cambios en vivo) ======
-  const [panMode, setPanMode] = useState<PanMode>(PANORAMICMODE_INIT);
+  // ====== Estado controlado por la navbar ======
   const [initialView, setInitialView] = useState<InitialView>(INITIAL_VIEW_INIT);
   const [arrowColor, setArrowColor] = useState<string>(ARROW_COLOR_INIT);
-
-  // switches en vivo
-  const [showOsmBuildings, setShowOsmBuildings] = useState<boolean>(SHOW_OSM_INIT);
   const [maskOutside, setMaskOutside] = useState<boolean>(MASK_OUTSIDE_INIT);
 
-  // ====== NUEVO: visibilidad por categorías ======
+  // ====== NUEVO: pitch / bearing ======
+  const [pitch, setPitch] = useState<number>(0);      // 0–85
+  const [bearing, setBearing] = useState<number>(0);  // 0–360
+
+  // ====== Visibilidad por categorías ======
   const [catVis, setCatVis] = useState<Record<BuildingCategory, boolean>>(defaultVisibility);
   const categories = allCategories;
 
@@ -138,31 +130,30 @@ export default function MapScreen() {
   }, [campusCenter]);
 
   // ====== HTML inicial del WebView (se inyecta una vez) ======
-const initialHtml = useMemo(() => {
-  if (!center) return '<html></html>';
-  return htmlPage(
-    center,
-    ITO_CAMPUS_FC,
-    {
-      bufferM: 250,
-      basemap: 'voyager',
-      panMode: 'free',
-      softExtraM: 150,
-      maskOutside: false,
-      initialView: 'topdown',
-      obliquePitch: 60,
-      showOsmBuildings: false,
-      arrowColor: '#2563eb',
-      vertexOrder: 'cw',
-      floorHeightM: 3.2,
-      // 🔻 nuevos flags
-      showBasemapLabels: false,
-      showCampusLabel: false,
-    },
-    visibleBuildings
-  );
-}, [center]);
-
+  const initialHtml = useMemo(() => {
+    if (!center) return '<html></html>';
+    return htmlPage(
+      center,
+      ITO_CAMPUS_FC,
+      {
+        bufferM: 250,
+        basemap: 'voyager',
+        panMode: 'free',
+        softExtraM: 150,
+        maskOutside: false,
+        initialView: 'topdown',
+        obliquePitch: 60,
+        showOsmBuildings: false,
+        arrowColor: '#2563eb',
+        vertexOrder: 'cw',
+        floorHeightM: 3.2,
+        // flags de estilo y labels
+        showBasemapLabels: false,
+        showCampusLabel: false,
+      },
+      visibleBuildings
+    );
+  }, [center, visibleBuildings]);
 
   const webSource = useMemo(() => ({ html: initialHtml }), [initialHtml]);
 
@@ -174,44 +165,34 @@ const initialHtml = useMemo(() => {
     webRef.current?.postMessage(msg);
   }, [visibleBuildings]);
 
-  // 2) Enviar flags (OSM y máscara) cuando cambien
+  // 2) Enviar flags cuando cambien
   useEffect(() => {
-    const flags = { showOsmBuildings, maskOutside };
+    const flags = { maskOutside };
     webRef.current?.postMessage(JSON.stringify({ type: 'set-flags', payload: flags }));
-
-    // Compatibilidad si tu HTML expone funciones imperativas:
     webRef.current?.injectJavaScript(
-      `try{
-        if(window.setShowOsmBuildings) window.setShowOsmBuildings(${showOsmBuildings});
-        if(window.setMaskOutside) window.setMaskOutside(${maskOutside});
-      }catch(e){}; true;`
+      `try{ if(window.setMaskOutside) window.setMaskOutside(${maskOutside}); }catch(e){}; true;`
     );
-  }, [showOsmBuildings, maskOutside]);
+  }, [maskOutside]);
 
-  // ====== Handlers Navbar → funciones (además de setState) ======
-  const handleChangePanMode = (mode: PanMode) => {
-    setPanMode(mode);
-    webRef.current?.injectJavaScript(`window.setPanMode && window.setPanMode(${JSON.stringify(mode)}); true;`);
-  };
-
-  const handleChangeInitialView = (view: InitialView) => {
-    setInitialView(view);
-    webRef.current?.injectJavaScript(`window.setInitialView && window.setInitialView(${JSON.stringify(view)}); true;`);
-  };
-
+  // ====== Handlers ======
   const handleChangeArrowColor = (hex: string) => {
     setArrowColor(hex);
-    webRef.current?.injectJavaScript(`window.setArrowColor && window.setArrowColor(${JSON.stringify(hex)}); true;`);
-  };
-
-  const handleToggleOsmBuildings = (value: boolean) => {
-    setShowOsmBuildings(value);
-    // postMessage ya se dispara por el useEffect de flags
+    webRef.current?.injectJavaScript(`try{ if(window.setArrowColor) window.setArrowColor(${JSON.stringify(hex)}); }catch(e){}; true;`);
   };
 
   const handleToggleMaskOutside = (value: boolean) => {
     setMaskOutside(value);
-    // postMessage ya se dispara por el useEffect de flags
+  };
+
+  // NUEVO: handlers pitch/bearing (como pediste)
+  const handleChangePitch = (v: number) => {
+    setPitch(v);
+    webRef.current?.injectJavaScript(`try{ if(window.setPitch) window.setPitch(${Math.round(v)}); }catch(e){}; true;`);
+  };
+
+  const handleChangeBearing = (v: number) => {
+    setBearing(v);
+    webRef.current?.injectJavaScript(`try{ if(window.setBearing) window.setBearing(${Math.round(v)}); }catch(e){}; true;`);
   };
 
   if (!center) {
@@ -234,23 +215,39 @@ const initialHtml = useMemo(() => {
         allowFileAccess
         allowUniversalAccessFromFileURLs
         source={webSource}
-        // Si tu html manda mensajes (clicks, etc.), maneja aquí:
-        // onMessage={(e) => { const msg = JSON.parse(e.nativeEvent.data); ... }}
       />
 
-<MapNavbar
-  initialView={initialView}
-  onChangeInitialView={handleChangeInitialView}
-  arrowColor={arrowColor}
-  onChangeArrowColor={handleChangeArrowColor}
-  maskOutside={maskOutside}
-  onToggleMaskOutside={handleToggleMaskOutside}
-  categories={categories}
-  categoryVisibility={catVis}
-  onToggleCategory={(c: BuildingCategory, v: boolean) =>
-    setCatVis(prev => ({ ...prev, [c]: v }))
-  }
-/>
+      <MapNavbar
+        // Vista (con inyección inline como solicitaste)
+        initialView={initialView}
+        onChangeInitialView={(view) => {
+          setInitialView(view);
+          webRef.current?.injectJavaScript(
+            `try{ if(window.setInitialView) window.setInitialView(${JSON.stringify(view)}); }catch(e){}; true;`
+          );
+        }}
+
+        // Sliders de vista
+        pitchValue={pitch}
+        onChangePitch={handleChangePitch}
+        bearingValue={bearing}
+        onChangeBearing={handleChangeBearing}
+
+        // Flecha
+        arrowColor={arrowColor}
+        onChangeArrowColor={handleChangeArrowColor}
+
+        // Visibilidad
+        maskOutside={maskOutside}
+        onToggleMaskOutside={handleToggleMaskOutside}
+
+        // Categorías
+        categories={categories}
+        categoryVisibility={catVis}
+        onToggleCategory={(c: BuildingCategory, v: boolean) =>
+          setCatVis(prev => ({ ...prev, [c]: v }))
+        }
+      />
     </>
   );
 }
