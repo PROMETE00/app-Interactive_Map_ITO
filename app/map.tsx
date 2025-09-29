@@ -146,7 +146,7 @@ const initialHtml = useMemo(() => {
     {
       bufferM: 250,
       basemap: 'voyager',
-      panMode: 'locked',
+      panMode: 'free',
       softExtraM: 150,
       maskOutside: false,
       initialView: 'topdown',
@@ -238,34 +238,19 @@ const initialHtml = useMemo(() => {
         // onMessage={(e) => { const msg = JSON.parse(e.nativeEvent.data); ... }}
       />
 
-      <MapNavbar
-        panMode={panMode}
-        onChangePanMode={handleChangePanMode}
-        initialView={initialView}
-        onChangeInitialView={handleChangeInitialView}
-        arrowColor={arrowColor}
-        onChangeArrowColor={handleChangeArrowColor}
-
-        // Switches de capas base
-        showOsmBuildings={showOsmBuildings}
-        onToggleOsmBuildings={handleToggleOsmBuildings}
-        maskOutside={maskOutside}
-        onToggleMaskOutside={handleToggleMaskOutside}
-
-        // === NUEVO: control de categorías ===
-        categories={categories}
-        categoryVisibility={catVis}
-        onToggleCategory={(c, v) => setCatVis(prev => ({ ...prev, [c]: v }))}
-        onSoloCategory={(c) =>
-          setCatVis(Object.fromEntries(categories.map(k => [k, k === c])) as Record<BuildingCategory, boolean>)
-        }
-        onShowAll={() =>
-          setCatVis(Object.fromEntries(categories.map(k => [k, true])) as Record<BuildingCategory, boolean>)
-        }
-        onHideAll={() =>
-          setCatVis(Object.fromEntries(categories.map(k => [k, false])) as Record<BuildingCategory, boolean>)
-        }
-      />
+<MapNavbar
+  initialView={initialView}
+  onChangeInitialView={handleChangeInitialView}
+  arrowColor={arrowColor}
+  onChangeArrowColor={handleChangeArrowColor}
+  maskOutside={maskOutside}
+  onToggleMaskOutside={handleToggleMaskOutside}
+  categories={categories}
+  categoryVisibility={catVis}
+  onToggleCategory={(c: BuildingCategory, v: boolean) =>
+    setCatVis(prev => ({ ...prev, [c]: v }))
+  }
+/>
     </>
   );
 }

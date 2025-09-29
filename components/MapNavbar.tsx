@@ -1,15 +1,14 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import type { BuildingCategory } from './buildings'; // ajusta la ruta si tu index está en otro lado
+// components/MapNavbar.tsx
+import { Ionicons } from '@expo/vector-icons';
+import React, { useRef, useState } from 'react';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import type { BuildingCategory } from './buildings'; // ajusta la ruta si aplica
 
 type Basemap = 'positron' | 'voyager' | 'dark' | 'osm';
-type PanMode = 'free' | 'locked' | 'soft';
 type InitialView = 'topdown' | 'oblique';
 
 type Props = {
-  panMode: PanMode;
-  onChangePanMode: (v: PanMode) => void;
+  // (Se eliminó el control de "modo panorámico")
 
   initialView: InitialView;
   onChangeInitialView: (v: InitialView) => void;
@@ -17,45 +16,36 @@ type Props = {
   arrowColor: string;
   onChangeArrowColor: (hex: string) => void;
 
-  // opcionales ya existentes por si luego los usas
+  // opcionales
   basemap?: Basemap;
   onChangeBasemap?: (b: Basemap) => void;
 
-  // switches existentes
-  showOsmBuildings: boolean;
-  onToggleOsmBuildings: (v: boolean) => void;
-
+  // máscara exterior
   maskOutside: boolean;
   onToggleMaskOutside: (v: boolean) => void;
 
-  // NUEVO: control de categorías
+  // categorías
   categories: BuildingCategory[];
   categoryVisibility: Record<BuildingCategory, boolean>;
   onToggleCategory: (c: BuildingCategory, v: boolean) => void;
-  onSoloCategory: (c: BuildingCategory) => void;
-  onShowAll: () => void;
-  onHideAll: () => void;
 };
 
-const DARK_BG = '#111827'; // gris muy oscuro
-const DARK_PANEL = '#1f2937'; // panel un pelín más claro
+const DARK_BG = '#111827';
+const DARK_PANEL = '#1f2937';
 const TEXT = '#e5e7eb';
 const ACCENT = '#60a5fa';
 
 const ARROW_PALETTE = ['#2563eb','#22c55e','#ef4444','#f59e0b','#06b6d4','#a855f7','#111827'];
-const PAN_MODES: PanMode[] = ['free','soft','locked'];
 const VIEWS: InitialView[] = ['topdown','oblique'];
 
 export default function MapNavbar({
-  panMode, onChangePanMode,
   initialView, onChangeInitialView,
   arrowColor, onChangeArrowColor,
-  showOsmBuildings, onToggleOsmBuildings,
   maskOutside, onToggleMaskOutside,
   categories, categoryVisibility, onToggleCategory,
-  onSoloCategory, onShowAll, onHideAll,
 }: Props) {
-  const [panel, setPanel] = useState<null | 'pan' | 'view' | 'color' | 'layers'>(null);
+  const [panel, setPanel] = useState<null | 'view' | 'color' | 'visibility'>(null);
+  const visScrollRef = useRef<ScrollView>(null);
 
   const IconBtn = ({
     onPress,
@@ -100,19 +90,6 @@ export default function MapNavbar({
     </Pressable>
   );
 
-  const SmallBtn = ({ label, onPress }: { label: string; onPress: () => void }) => (
-    <Pressable
-      onPress={onPress}
-      style={{
-        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-        backgroundColor: '#374151', marginLeft: 6,
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-      }}
-    >
-      <Text style={{ color: TEXT, fontWeight: '700' }}>{label}</Text>
-    </Pressable>
-  );
-
   const ColorDot = ({ color, active, onPress }: { color: string; active: boolean; onPress: () => void }) => (
     <Pressable
       onPress={onPress}
@@ -124,150 +101,27 @@ export default function MapNavbar({
     />
   );
 
-  // Dos opciones ON/OFF en fila
-  const ToggleRow = ({
-    label, value, onChange,
-  }: { label: string; value: boolean; onChange: (v: boolean) => void }) => (
-    <View style={{ marginBottom: 12 }}>
-      <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 8 }}>{label}</Text>
-      <View style={{ flexDirection: 'row' }}>
-        <Pill label="ON" active={value === true} onPress={() => onChange(true)} />
-        <Pill label="OFF" active={value === false} onPress={() => onChange(false)} />
-      </View>
+  const SwitchRow = ({
+    label, value, onValueChange,
+  }: { label: string; value: boolean; onValueChange: (v: boolean) => void }) => (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 6,
+        marginBottom: 6,
+      }}
+    >
+      <Text style={{ color: TEXT, fontWeight: '700', marginRight: 10 }}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: '#374151', true: ACCENT }}
+        thumbColor={value ? '#0b1220' : '#9ca3af'}
+      />
     </View>
   );
-
-  // Panel flotante
-  const Panel = () => {
-    if (!panel) return null;
-
-    return (
-      <>
-        {/* Cierra al tocar fuera del panel */}
-        <Pressable
-          onPress={() => setPanel(null)}
-          style={{
-            position: 'absolute', left: 0, right: 0,
-            top: 0, bottom: 72,
-          }}
-        />
-
-        <View
-          style={{
-            position: 'absolute',
-            right: 12,
-            bottom: 72 + 8,
-            minWidth: 260,
-            maxWidth: 360,
-            borderRadius: 14,
-            backgroundColor: DARK_PANEL,
-            padding: 12,
-            shadowColor: '#000',
-            shadowOpacity: 0.3,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 10,
-          }}
-        >
-          {panel === 'pan' && (
-            <>
-              <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 8 }}>Modo panorámico</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {PAN_MODES.map(m => (
-                  <Pill
-                    key={m}
-                    label={m}
-                    active={panMode === m}
-                    onPress={() => { onChangePanMode(m); setPanel(null); }}
-                  />
-                ))}
-              </ScrollView>
-            </>
-          )}
-
-          {panel === 'view' && (
-            <>
-              <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 8 }}>Vista</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {VIEWS.map(v => (
-                  <Pill
-                    key={v}
-                    label={v}
-                    active={initialView === v}
-                    onPress={() => { onChangeInitialView(v); setPanel(null); }}
-                  />
-                ))}
-              </ScrollView>
-            </>
-          )}
-
-          {panel === 'color' && (
-            <>
-              <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 8 }}>Color de flecha</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {ARROW_PALETTE.map(c => (
-                  <ColorDot
-                    key={c}
-                    color={c}
-                    active={arrowColor.toLowerCase() === c.toLowerCase()}
-                    onPress={() => { onChangeArrowColor(c); setPanel(null); }}
-                  />
-                ))}
-              </ScrollView>
-            </>
-          )}
-
-          {panel === 'layers' && (
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
-              <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 12 }}>Capas</Text>
-
-              {/* Toggles del mapa base */}
-              <ToggleRow
-                label="Edificios OSM"
-                value={showOsmBuildings}
-                onChange={(v) => { onToggleOsmBuildings(v); }}
-              />
-              <ToggleRow
-                label="Enmascarar fuera del campus"
-                value={maskOutside}
-                onChange={(v) => { onToggleMaskOutside(v); }}
-              />
-
-              {/* Categorías personalizadas */}
-              <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 10 }} />
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-                <Text style={{ color: TEXT, fontWeight: '800', marginRight: 8 }}>Categorías</Text>
-                <SmallBtn label="Todos" onPress={onShowAll} />
-                <SmallBtn label="Ninguno" onPress={onHideAll} />
-              </View>
-
-              {categories.map(cat => {
-                const on = !!categoryVisibility[cat];
-                return (
-                  <View
-                    key={cat}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 6,
-                    }}
-                  >
-                    <Text style={{ color: TEXT, fontWeight: '700', marginRight: 10 }}>{cat}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Pill label="ON" active={on} onPress={() => onToggleCategory(cat, true)} />
-                      <Pill label="OFF" active={!on} onPress={() => onToggleCategory(cat, false)} />
-                      <SmallBtn label="SOLO" onPress={() => onSoloCategory(cat)} />
-                    </View>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
-      </>
-    );
-  };
 
   return (
     <View
@@ -277,8 +131,99 @@ export default function MapNavbar({
         pointerEvents: 'box-none',
       }}
     >
-      <Panel />
+      {/* PANEL inline */}
+      {panel && (
+        <>
+          <Pressable
+            onPress={() => setPanel(null)}
+            style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 72 }}
+          />
+          <View
+            style={{
+              position: 'absolute',
+              right: 12,
+              bottom: 72 + 8,
+              minWidth: 260,
+              maxWidth: 360,
+              borderRadius: 14,
+              backgroundColor: DARK_PANEL,
+              padding: 12,
+              shadowColor: '#000',
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 10,
+            }}
+          >
+            {panel === 'view' && (
+              <>
+                <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 8 }}>Vista</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {VIEWS.map(v => (
+                    <Pill
+                      key={v}
+                      label={v}
+                      active={initialView === v}
+                      onPress={() => { onChangeInitialView(v); setPanel(null); }}
+                    />
+                  ))}
+                </ScrollView>
+              </>
+            )}
 
+            {panel === 'color' && (
+              <>
+                <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 8 }}>Color de flecha</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {ARROW_PALETTE.map(c => (
+                    <ColorDot
+                      key={c}
+                      color={c}
+                      active={arrowColor.toLowerCase() === c.toLowerCase()}
+                      onPress={() => { onChangeArrowColor(c); setPanel(null); }}
+                    />
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            {panel === 'visibility' && (
+              <ScrollView
+                ref={visScrollRef}
+                showsVerticalScrollIndicator={true}
+                style={{ maxHeight: 360 }}
+                contentContainerStyle={{ paddingBottom: 6 }}
+              >
+                <Text style={{ color: TEXT, fontWeight: '800', marginBottom: 12 }}>Visibilidad</Text>
+
+                {/* Máscara del exterior */}
+                <SwitchRow
+                  label="Enmascarar fuera del campus"
+                  value={maskOutside}
+                  onValueChange={(v) => onToggleMaskOutside(v)}
+                />
+
+                <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 10 }} />
+
+                {/* Categorías con Switch */}
+                {categories.map(cat => {
+                  const on = !!categoryVisibility[cat];
+                  return (
+                    <SwitchRow
+                      key={String(cat)}
+                      label={String(cat)}
+                      value={on}
+                      onValueChange={(v) => onToggleCategory(cat, v)}
+                    />
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        </>
+      )}
+
+      {/* BARRA */}
       <View
         pointerEvents="auto"
         style={{
@@ -298,14 +243,6 @@ export default function MapNavbar({
         }}
       >
         <IconBtn
-          label="Modo panorámico"
-          active={panel === 'pan'}
-          onPress={() => setPanel(panel === 'pan' ? null : 'pan')}
-        >
-          <MaterialCommunityIcons name="cursor-move" size={24} color={panel === 'pan' ? ACCENT : TEXT} />
-        </IconBtn>
-
-        <IconBtn
           label="Vista"
           active={panel === 'view'}
           onPress={() => setPanel(panel === 'view' ? null : 'view')}
@@ -313,20 +250,21 @@ export default function MapNavbar({
           <Ionicons name="cube-outline" size={24} color={panel === 'view' ? ACCENT : TEXT} />
         </IconBtn>
 
+        {/* Icono de flecha para el color de flecha */}
         <IconBtn
           label="Color de flecha"
           active={panel === 'color'}
           onPress={() => setPanel(panel === 'color' ? null : 'color')}
         >
-          <Ionicons name="color-palette-outline" size={24} color={panel === 'color' ? ACCENT : TEXT} />
+          <Ionicons name="navigate-outline" size={24} color={panel === 'color' ? ACCENT : TEXT} />
         </IconBtn>
 
         <IconBtn
-          label="Capas"
-          active={panel === 'layers'}
-          onPress={() => setPanel(panel === 'layers' ? null : 'layers')}
+          label="Visibilidad"
+          active={panel === 'visibility'}
+          onPress={() => setPanel(panel === 'visibility' ? null : 'visibility')}
         >
-          <MaterialCommunityIcons name="layers-outline" size={24} color={panel === 'layers' ? ACCENT : TEXT} />
+          <Ionicons name="eye-outline" size={24} color={panel === 'visibility' ? ACCENT : TEXT} />
         </IconBtn>
       </View>
     </View>
