@@ -16,7 +16,7 @@ export const ITO_CAMPUS_FC: GeoJSON.FeatureCollection = {
       geometry: {
         type: 'Polygon',
         coordinates: [[
-          [-96.743688, 17.079933],
+          [-96.743629, 17.079964],
           [-96.742086, 17.076864],
           [-96.744916, 17.075521],
           [-96.746584, 17.078572],
