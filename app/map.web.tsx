@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import MapWeb from '@/components/MapWeb';
-import MapNavbar from '@/components/MapNavbar';
+import SidebarWeb from '@/components/SidebarWeb';
 import campus from '@/assets/geo/campus.json';
 import {
   allCategories,
@@ -30,46 +30,39 @@ function getGeojsonCenter(fc: any) {
 export default function MapScreenWeb() {
   const campusCenter = useMemo(() => getGeojsonCenter(campus), []);
   
-  const [pitch, setPitch] = useState(0);
-  const [bearing, setBearing] = useState(0);
-  const [maskOutside, setMaskOutside] = useState(false);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [catVis, setCatVis] = useState<Record<BuildingCategory, boolean>>(defaultVisibility);
-  const [arrowColor, setArrowColor] = useState('#2563eb');
 
   const visibleBuildings = useMemo(() => mergeBuildings(catVis), [catVis]);
 
   return (
     <View style={styles.container}>
-      <MapWeb
-        center={campusCenter}
-        buildings={visibleBuildings}
-        pitch={pitch}
-        bearing={bearing}
-        maskOutside={maskOutside}
-        arrowColor={arrowColor}
+      {/* Sidebar para PC */}
+      <SidebarWeb 
+        onSelectBuilding={(id) => setSelectedBuildingId(id)}
+        categoryVisibility={catVis}
+        onToggleCategory={(cat, visible) => setCatVis(prev => ({ ...prev, [cat]: visible }))}
       />
       
-      <MapNavbar
-        initialView={pitch > 0 ? 'oblique' : 'topdown'}
-        onChangeInitialView={(view) => setPitch(view === 'topdown' ? 0 : 60)}
-        pitchValue={pitch}
-        onChangePitch={setPitch}
-        bearingValue={bearing}
-        onChangeBearing={setBearing}
-        arrowColor={arrowColor}
-        onChangeArrowColor={setArrowColor}
-        maskOutside={maskOutside}
-        onToggleMaskOutside={setMaskOutside}
-        categories={allCategories}
-        categoryVisibility={catVis}
-        onToggleCategory={(c, v) => setCatVis(prev => ({ ...prev, [c]: v }))}
-      />
+      {/* Área del mapa */}
+      <View style={styles.mapArea}>
+        <MapWeb
+          center={campusCenter}
+          buildings={visibleBuildings}
+          selectedBuildingId={selectedBuildingId}
+          pitch={selectedBuildingId ? 65 : 0}
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    flexDirection: 'row', // Layout horizontal para PC
+  },
+  mapArea: {
     flex: 1,
   },
 });

@@ -13,6 +13,7 @@ interface MapWebProps {
   bearing?: number;
   maskOutside?: boolean;
   arrowColor?: string;
+  selectedBuildingId?: string | null;
   onMapReady?: (map: maplibregl.Map) => void;
 }
 
@@ -23,13 +24,14 @@ export default function MapWeb({
   bearing = 0,
   maskOutside = false,
   arrowColor = '#2563eb',
+  selectedBuildingId = null,
   onMapReady,
 }: MapWebProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const playerMarkerRef = useRef<maplibregl.Marker | null>(null);
 
-  // Normalizar el campus una sola vez
+  // ... (useMemo campusNorm y campusUnion siguen igual)
   const campusNorm = useMemo(() => {
     const fc = ITO_CAMPUS_FC;
     if (!fc || !Array.isArray(fc.features)) return fc;
@@ -55,6 +57,33 @@ export default function MapWeb({
     }
     return u;
   }, [campusNorm]);
+
+  // NUEVO: Efecto para volar al edificio seleccionado
+  useEffect(() => {
+    if (mapRef.current && selectedBuildingId) {
+      const b = buildings.find(b => b.id === selectedBuildingId);
+      if (b && b.polygon && b.polygon.length > 0) {
+        // Calcular centro del polígono para el vuelo
+        const coords = b.polygon.map(p => [p[0], p[1]]);
+        // Asegurar que el anillo esté cerrado para turf.polygon
+        if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
+          coords.push(coords[0]);
+        }
+        
+        const poly = turf.polygon([coords]);
+        const center = turf.centerOfMass(poly);
+        const [lng, lat] = center.geometry.coordinates;
+        
+        mapRef.current.flyTo({
+          center: [lng, lat] as [number, number],
+          zoom: 19,
+          pitch: 65,
+          duration: 2000,
+          essential: true
+        });
+      }
+    }
+  }, [selectedBuildingId, buildings]);
 
   // Inicializar el mapa
   useEffect(() => {
