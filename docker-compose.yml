@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    network_mode: host
+    environment:
+      CLOUDFLARED_TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      - app
+    restart: unless-stopped

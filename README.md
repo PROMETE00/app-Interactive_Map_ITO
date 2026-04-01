@@ -49,3 +49,15 @@ Join our community of developers creating universal apps.
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
 # app-Interactive_Map_ITO
+
+## Docker + Cloudflared
+
+1. Copy `.env.example` to `.env` and paste your Cloudflare tunnel token into `CLOUDFLARED_TUNNEL_TOKEN`.
+2. Start the stack with:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. The web app will be available on `http://localhost:3003`.
+4. Point the tunnel hostname `map-ito.prome.works` to the local origin `http://localhost:3003` in Cloudflare Tunnel.

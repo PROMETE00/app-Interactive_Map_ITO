@@ -1,0 +1,10 @@
+.git
+.expo
+.env
+.env.*
+.env*.local
+android
+ios
+node_modules
+dist
+web-build
