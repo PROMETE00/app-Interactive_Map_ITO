@@ -1,43 +1,16 @@
-// app/map.tsx
 import * as Location from 'expo-location';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, TouchableOpacity } from 'react-native';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { WebView } from 'react-native-webview';
+import { useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-import { ITO_CAMPUS_FC } from '@/components/buildings/ito-campus-mask'; // Polígono del campus para la máscara
-import campus from '../assets/geo/campus.json'; // Solo para center de respaldo
-
-// Catálogo y utilidades de categorías
-import {
-  allCategories,
-  defaultVisibility,
-  mergeBuildings,
-  type BuildingCategory,
-} from '../components/buildings';
-
-import MapNavbar from '../components/MapNavbar';
-import { htmlPage } from '../lib/htmlPage';
-
-type Center = { lng: number; lat: number };
-type InitialView = 'topdown' | 'oblique';
-
-function getGeojsonCenter(fc: any): Center {
-  let minX = 180, minY = 90, maxX = -180, maxY = -90;
-  const push = (x: number, y: number) => {
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  };
-  for (const f of fc.features || []) {
-    const g = f.geometry; if (!g) continue;
-    if (g.type === 'Polygon') for (const r of g.coordinates) for (const [x, y] of r) push(x, y);
-    if (g.type === 'MultiPolygon')
-      for (const p of g.coordinates) for (const r of p) for (const [x, y] of r) push(x, y);
-  }
-  return { lng: (minX + maxX) / 2, lat: (minY + maxY) / 2 };
-}
+import { ITO_CAMPUS_FC } from '@/components/buildings/ito-campus-mask';
+import MapNavbar from '@/components/MapNavbar';
+import WelcomeModal from '@/components/WelcomeModal';
+import { htmlPage } from '@/lib/htmlPage';
+import { useMapState } from '@/hooks/useMapState';
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -48,34 +21,38 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 export default function MapScreen() {
-  // Centro de respaldo desde campus.json
-  const campusCenter = useMemo(() => getGeojsonCenter(campus), []);
-  const [center, setCenter] = useState<Center | null>(null);
+  const { selectedId } = useLocalSearchParams<{ selectedId: string }>();
   const webRef = useRef<WebViewType>(null);
 
-  // ====== Config inicial (solo primer render del mapa) ======
-  const INITIAL_VIEW_INIT: InitialView = 'topdown';
-  const MASK_OUTSIDE_INIT = false;
-  const ARROW_COLOR_INIT = '#2563eb';
-
-  // ====== Estado controlado por la navbar ======
-  const [initialView, setInitialView] = useState<InitialView>(INITIAL_VIEW_INIT);
-  const [arrowColor, setArrowColor] = useState<string>(ARROW_COLOR_INIT);
-  const [maskOutside, setMaskOutside] = useState<boolean>(MASK_OUTSIDE_INIT);
-
-  // ====== NUEVO: pitch / bearing ======
-  const [pitch, setPitch] = useState<number>(0);      // 0–85
-  const [bearing, setBearing] = useState<number>(0);  // 0–360
-
-  // ====== Visibilidad por categorías ======
-  const [catVis, setCatVis] = useState<Record<BuildingCategory, boolean>>(defaultVisibility);
-  const categories = allCategories;
-
-  // Edificios visibles (resultado de mezclar categorías encendidas)
-  const visibleBuildings = useMemo(
-    () => mergeBuildings(catVis),
-    [catVis]
-  );
+  const {
+    center,
+    visibleBuildings,
+    selectedBuildingId,
+    categoryVisibility,
+    allCategories,
+    pitch,
+    bearing,
+    zoom,
+    initialView,
+    arrowColor,
+    maskOutside,
+    followUser,
+    userLocation,
+    userHeading,
+    isFirstPerson,
+    toggleCategory,
+    selectBuilding,
+    setInitialView,
+    setPitch,
+    setBearing,
+    setZoom,
+    setArrowColor,
+    setMaskOutside,
+    setFollowUser,
+    setUserLocation,
+    setUserHeading,
+    toggleFirstPerson,
+  } = useMapState();
 
   // ====== Permisos + ubicación usuario ======
   useEffect(() => {
@@ -95,116 +72,131 @@ export default function MapScreen() {
             10000
           );
 
-          const c = pos
-            ? { lng: pos.coords.longitude, lat: pos.coords.latitude }
-            : campusCenter;
-
-          if (!cancelled) setCenter(c);
+          if (pos && !cancelled) {
+            setUserLocation({ lng: pos.coords.longitude, lat: pos.coords.latitude });
+            if (pos.coords.heading !== null) setUserHeading(pos.coords.heading);
+          }
 
           sub = await Location.watchPositionAsync(
-            { accuracy: Location.Accuracy.Balanced, timeInterval: 1500, distanceInterval: 2 },
+            { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 1 },
             (loc) => {
               const lng = loc.coords.longitude;
               const lat = loc.coords.latitude;
-              const h = Number.isFinite(loc.coords.heading) ? (loc.coords.heading as number) : undefined;
+              const h = Number.isFinite(loc.coords.heading) ? (loc.coords.heading as number) : 0;
+
+              setUserLocation({ lng, lat });
+              setUserHeading(h);
 
               const js = `
                 (function(){
                   if (window.__MAP_READY__ && window.updatePlayer) {
-                    window.updatePlayer(${lng.toFixed(6)}, ${lat.toFixed(6)}, ${Number.isFinite(h as number) ? (h as number).toFixed(1) : 'undefined'});
+                    window.updatePlayer(${lng.toFixed(6)}, ${lat.toFixed(6)}, ${h.toFixed(1)});
                   }
                 })();
                 true;`;
               webRef.current?.injectJavaScript(js);
             }
           );
-          return;
         }
-      } catch {
-        // fallback abajo
+      } catch (e) {
+        console.warn('Location error:', e);
       }
-      if (!cancelled) setCenter(campusCenter);
     })();
 
     return () => { cancelled = true; sub?.remove(); };
-  }, [campusCenter]);
+  }, []);
 
-  // ====== HTML inicial del WebView (se inyecta una vez) ======
+  // Seleccionar edificio si viene por query params
+  useEffect(() => {
+    if (selectedId) {
+      selectBuilding(selectedId);
+    }
+  }, [selectedId, selectBuilding]);
+
+  // HTML inicial del WebView
   const initialHtml = useMemo(() => {
-    if (!center) return '<html></html>';
     return htmlPage(
       center,
       ITO_CAMPUS_FC,
       {
         bufferM: 250,
         basemap: 'voyager',
-        panMode: 'free',
-        softExtraM: 150,
-        maskOutside: false,
-        initialView: 'topdown',
-        obliquePitch: 60,
+        panMode: 'soft',
+        softExtraM: 500,
+        maskOutside: maskOutside,
+        initialView: initialView,
+        obliquePitch: isFirstPerson ? 80 : 60,
         showOsmBuildings: false,
-        arrowColor: '#2563eb',
+        arrowColor: arrowColor,
         vertexOrder: 'cw',
         floorHeightM: 3.2,
-        // flags de estilo y labels
         showBasemapLabels: false,
         showCampusLabel: false,
       },
       visibleBuildings
     );
-  }, [center, visibleBuildings]);
+  }, [center]);
 
   const webSource = useMemo(() => ({ html: initialHtml }), [initialHtml]);
 
-  // ====== Push dinámico de datos al WebView (sin recargar) ======
-
-  // 1) Enviar edificios visibles cuando cambien las categorías
+  // Push dinámico de datos al WebView
   useEffect(() => {
-    const msg = JSON.stringify({ type: 'set-buildings', payload: visibleBuildings });
-    webRef.current?.postMessage(msg);
+    webRef.current?.postMessage(JSON.stringify({ type: 'set-buildings', payload: visibleBuildings }));
   }, [visibleBuildings]);
 
-  // 2) Enviar flags cuando cambien
   useEffect(() => {
-    const flags = { maskOutside };
-    webRef.current?.postMessage(JSON.stringify({ type: 'set-flags', payload: flags }));
-    webRef.current?.injectJavaScript(
-      `try{ if(window.setMaskOutside) window.setMaskOutside(${maskOutside}); }catch(e){}; true;`
-    );
+    webRef.current?.injectJavaScript(`try{ if(window.setMaskOutside) window.setMaskOutside(${maskOutside}); }catch(e){}; true;`);
   }, [maskOutside]);
 
-  // ====== Handlers ======
-  const handleChangeArrowColor = (hex: string) => {
-    setArrowColor(hex);
-    webRef.current?.injectJavaScript(`try{ if(window.setArrowColor) window.setArrowColor(${JSON.stringify(hex)}); }catch(e){}; true;`);
-  };
+  useEffect(() => {
+    webRef.current?.injectJavaScript(`try{ if(window.setArrowColor) window.setArrowColor(${JSON.stringify(arrowColor)}); }catch(e){}; true;`);
+  }, [arrowColor]);
 
-  const handleToggleMaskOutside = (value: boolean) => {
-    setMaskOutside(value);
-  };
+  useEffect(() => {
+    webRef.current?.injectJavaScript(`try{ if(window.setPitch) window.setPitch(${Math.round(pitch)}); }catch(e){}; true;`);
+  }, [pitch]);
 
-  // NUEVO: handlers pitch/bearing (como pediste)
-  const handleChangePitch = (v: number) => {
-    setPitch(v);
-    webRef.current?.injectJavaScript(`try{ if(window.setPitch) window.setPitch(${Math.round(v)}); }catch(e){}; true;`);
-  };
+  useEffect(() => {
+    webRef.current?.injectJavaScript(`try{ if(window.setBearing) window.setBearing(${Math.round(bearing)}); }catch(e){}; true;`);
+  }, [bearing]);
 
-  const handleChangeBearing = (v: number) => {
-    setBearing(v);
-    webRef.current?.injectJavaScript(`try{ if(window.setBearing) window.setBearing(${Math.round(v)}); }catch(e){}; true;`);
-  };
+  useEffect(() => {
+    webRef.current?.injectJavaScript(`try{ if(window.setInitialView) window.setInitialView(${JSON.stringify(initialView)}); }catch(e){}; true;`);
+  }, [initialView]);
 
-  if (!center) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  useEffect(() => {
+    webRef.current?.injectJavaScript(`try{ if(window.setFollowUser) window.setFollowUser(${followUser}); }catch(e){}; true;`);
+  }, [followUser]);
+
+  // Sincronizar selección de edificio con el WebView y Ruta
+  useEffect(() => {
+    if (selectedBuildingId) {
+      const b = visibleBuildings.find(b => b.id === selectedBuildingId);
+      if (b && b.polygon && b.polygon.length > 0) {
+        const lng = b.polygon[0][0];
+        const lat = b.polygon[0][1];
+        const targetZoom = isFirstPerson ? 20 : 19;
+        const targetPitch = isFirstPerson ? 80 : 65;
+        
+        webRef.current?.injectJavaScript(`
+          try {
+            if (window.flyTo) {
+              window.flyTo(${Number(lng)}, ${Number(lat)}, ${targetZoom}, ${targetPitch}, 0);
+            }
+            if (window.updateRouteLine && ${!!userLocation}) {
+              window.updateRouteLine(${Number(userLocation?.lng)}, ${Number(userLocation?.lat)}, ${Number(lng)}, ${Number(lat)});
+            }
+          } catch(e) {}
+          true;
+        `);
+      }
+    } else {
+      webRef.current?.injectJavaScript(`try{ if(window.clearRouteLine) window.clearRouteLine(); }catch(e){}; true;`);
+    }
+  }, [selectedBuildingId, isFirstPerson, userLocation]);
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <WebView
         ref={webRef}
         style={{ flex: 1 }}
@@ -217,37 +209,80 @@ export default function MapScreen() {
         source={webSource}
       />
 
+      {/* Botones de ajuste rápidos Nativo */}
+      <View style={styles.floatingControls}>
+        <TouchableOpacity 
+          style={StyleSheet.flatten([styles.floatingButton, followUser && styles.buttonActive])}
+          onPress={() => setFollowUser(!followUser)}
+        >
+          <Ionicons name="locate" size={24} color={followUser ? "#fff" : "#1f2937"} />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={StyleSheet.flatten([styles.floatingButton, isFirstPerson && styles.buttonActive])}
+          onPress={toggleFirstPerson}
+        >
+          <Ionicons name="person" size={24} color={isFirstPerson ? "#fff" : "#1f2937"} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.floatingButton}
+          onPress={() => { setPitch(0); setBearing(0); }}
+        >
+          <Ionicons name="compass" size={24} color="#1f2937" />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.floatingButton}
+          onPress={() => setInitialView(initialView === 'topdown' ? 'oblique' : 'topdown')}
+        >
+          <Ionicons name={initialView === 'topdown' ? 'cube-outline' : 'map-outline'} size={24} color="#1f2937" />
+        </TouchableOpacity>
+      </View>
+
       <MapNavbar
-        // Vista (con inyección inline como solicitaste)
         initialView={initialView}
-        onChangeInitialView={(view) => {
-          setInitialView(view);
-          webRef.current?.injectJavaScript(
-            `try{ if(window.setInitialView) window.setInitialView(${JSON.stringify(view)}); }catch(e){}; true;`
-          );
-        }}
-
-        // Sliders de vista
+        onChangeInitialView={setInitialView}
         pitchValue={pitch}
-        onChangePitch={handleChangePitch}
+        onChangePitch={setPitch}
         bearingValue={bearing}
-        onChangeBearing={handleChangeBearing}
-
-        // Flecha
+        onChangeBearing={setBearing}
         arrowColor={arrowColor}
-        onChangeArrowColor={handleChangeArrowColor}
-
-        // Visibilidad
+        onChangeArrowColor={setArrowColor}
         maskOutside={maskOutside}
-        onToggleMaskOutside={handleToggleMaskOutside}
-
-        // Categorías
-        categories={categories}
-        categoryVisibility={catVis}
-        onToggleCategory={(c: BuildingCategory, v: boolean) =>
-          setCatVis(prev => ({ ...prev, [c]: v }))
-        }
+        onToggleMaskOutside={setMaskOutside}
+        categories={allCategories}
+        categoryVisibility={categoryVisibility}
+        onToggleCategory={toggleCategory}
       />
-    </>
+
+      <WelcomeModal />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  floatingControls: {
+    position: 'absolute',
+    right: 12,
+    top: 60,
+    zIndex: 100,
+    gap: 10,
+  },
+  floatingButton: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  buttonActive: {
+    backgroundColor: '#2563eb',
+  }
+});

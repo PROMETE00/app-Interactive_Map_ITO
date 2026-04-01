@@ -352,6 +352,15 @@ export function renderRuntimeScript() {
           window.__MAP_READY__ = true;
           window.__PLAYER_EL__ = el;
           window.__ARROW_FILL__ = fill;
+          window.__FOLLOW_USER__ = false;
+
+          window.setFollowUser = function(on){
+            window.__FOLLOW_USER__ = !!on;
+            if (on && playerMarker) {
+              const lngLat = playerMarker.getLngLat();
+              map.easeTo({ center: lngLat, duration: 500 });
+            }
+          };
 
           window.setArrowColor = function(color){
             try{
@@ -408,10 +417,26 @@ export function renderRuntimeScript() {
             }catch(e){}
           };
 
+          window.flyTo = function(lng, lat, zoom, pitch, bearing) {
+            try {
+              map.flyTo({
+                center: [lng, lat],
+                zoom: zoom || 18,
+                pitch: pitch || 0,
+                bearing: bearing || 0,
+                duration: 2000,
+                essential: true
+              });
+            } catch(e) {}
+          };
+
           window.updatePlayer = function(lng, lat, heading){
             try {
               if (typeof lng === 'number' && typeof lat === 'number') {
                 playerMarker.setLngLat([lng,lat]);
+                if (window.__FOLLOW_USER__) {
+                  map.setCenter([lng, lat]);
+                }
               }
               if (typeof heading === 'number' && !Number.isNaN(heading)) {
                 el.style.transform = 'rotate(' + heading + 'deg)';
@@ -419,7 +444,39 @@ export function renderRuntimeScript() {
             } catch(e){}
           };
 
-          window.addBuildings = function(defs){ addCustomBuildings(defs || [], campusUnion); };
+          // Ruta al edificio seleccionado (Guía Visual)
+          window.updateRouteLine = function(userLng, userLat, targetLng, targetLat) {
+            try {
+              const routeGeojson = {
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  coordinates: [[userLng, userLat], [targetLng, targetLat]]
+                }
+              };
+              if (map.getSource('route-guide')) {
+                map.getSource('route-guide').setData(routeGeojson);
+              } else {
+                map.addSource('route-guide', { type: 'geojson', data: routeGeojson });
+                map.addLayer({
+                  id: 'route-line', type: 'line', source: 'route-guide',
+                  layout: { 'line-cap': 'round', 'line-join': 'round' },
+                  paint: { 'line-color': '#2563eb', 'line-width': 4, 'line-dasharray': [2, 2] }
+                });
+              }
+            } catch(e) {}
+          };
+
+          window.clearRouteLine = function() {
+            try {
+              if (map.getSource('route-guide')) {
+                map.getSource('route-guide').setData({ type: 'FeatureCollection', features: [] });
+              }
+            } catch(e) {}
+          };
+
+          window.addBuildings = function(defs){ 
+ addCustomBuildings(defs || [], campusUnion); };
 
           // Aplica flags/pendientes
           if (typeof __PENDING_BUILDINGS__ !== 'undefined' && __PENDING_BUILDINGS__) {

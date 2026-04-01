@@ -1,68 +1,145 @@
-import React, { useState, useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, useWindowDimensions, TouchableOpacity } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import MapWeb from '@/components/MapWeb';
 import SidebarWeb from '@/components/SidebarWeb';
-import campus from '@/assets/geo/campus.json';
-import {
-  allCategories,
-  defaultVisibility,
-  mergeBuildings,
-  type BuildingCategory,
-} from '@/components/buildings';
-
-function getGeojsonCenter(fc: any) {
-  let minX = 180, minY = 90, maxX = -180, maxY = -90;
-  const push = (x: number, y: number) => {
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  };
-  for (const f of fc.features || []) {
-    const g = f.geometry; if (!g) continue;
-    if (g.type === 'Polygon') for (const r of g.coordinates) for (const [x, y] of r) push(x, y);
-    if (g.type === 'MultiPolygon')
-      for (const p of g.coordinates) for (const r of p) for (const [x, y] of r) push(x, y);
-  }
-  return { lng: (minX + maxX) / 2, lat: (minY + maxY) / 2 };
-}
+import MapNavbar from '@/components/MapNavbar';
+import MobileSearch from '@/components/MobileSearch';
+import WelcomeModal from '@/components/WelcomeModal';
+import { useMapState } from '@/hooks/useMapState';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function MapScreenWeb() {
-  const campusCenter = useMemo(() => getGeojsonCenter(campus), []);
+  const { width, height } = useWindowDimensions();
+  const isMobile = width < 768;
+  const { selectedId } = useLocalSearchParams<{ selectedId: string }>();
   
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
-  const [catVis, setCatVis] = useState<Record<BuildingCategory, boolean>>(defaultVisibility);
+  const {
+    center, visibleBuildings, selectedBuildingId, categoryVisibility,
+    allCategories, pitch, bearing, zoom, initialView, arrowColor,
+    maskOutside, followUser, userLocation, userHeading, isFirstPerson,
+    toggleCategory, selectBuilding, setInitialView, setPitch, setBearing,
+    setZoom, setArrowColor, setMaskOutside, setFollowUser, setUserLocation,
+    setUserHeading, toggleFirstPerson,
+  } = useMapState();
 
-  const visibleBuildings = useMemo(() => mergeBuildings(catVis), [catVis]);
+  // Geolocalización en Navegador
+  useEffect(() => {
+    if (typeof window !== 'undefined' && navigator.geolocation) {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setUserLocation({ lng: pos.coords.longitude, lat: pos.coords.latitude });
+          if (pos.coords.heading !== null) setUserHeading(pos.coords.heading);
+        },
+        (err) => console.warn(err),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedId) selectBuilding(selectedId);
+  }, [selectedId, selectBuilding]);
+
+  // Si estamos en primera persona, OCULTAMOS el sidebar para inmersión total (quitar botones izquierda)
+  const showSidebar = !isMobile && !isFirstPerson;
 
   return (
-    <View style={styles.container}>
-      {/* Sidebar para PC */}
-      <SidebarWeb 
-        onSelectBuilding={(id) => setSelectedBuildingId(id)}
-        categoryVisibility={catVis}
-        onToggleCategory={(cat, visible) => setCatVis(prev => ({ ...prev, [cat]: visible }))}
-      />
+    <View style={[styles.container, { height, width }]}>
+      <WelcomeModal />
       
-      {/* Área del mapa */}
+      {showSidebar && (
+        <SidebarWeb 
+          onSelectBuilding={selectBuilding}
+          selectedBuildingId={selectedBuildingId}
+          categoryVisibility={categoryVisibility}
+          onToggleCategory={toggleCategory}
+        />
+      )}
+      
       <View style={styles.mapArea}>
+        {isMobile && !isFirstPerson && <MobileSearch onSelectBuilding={selectBuilding} />}
+        
+        {/* Botones de ajuste rápidos - Pulidos */}
+        <View style={styles.floatingControls}>
+          <TouchableOpacity 
+            style={[styles.floatingButton, followUser && styles.buttonActive]}
+            onPress={() => setFollowUser(!followUser)}
+          >
+            <Ionicons name="locate" size={24} color={followUser ? "#fff" : "#1f2937"} />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.floatingButton, isFirstPerson && styles.buttonActive]}
+            onPress={toggleFirstPerson}
+          >
+            <Ionicons name="person" size={24} color={isFirstPerson ? "#fff" : "#1f2937"} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.floatingButton}
+            onPress={() => { 
+              setPitch(0); 
+              setBearing(0); 
+              if(isFirstPerson) toggleFirstPerson(); 
+            }}
+          >
+            <Ionicons name="compass" size={24} color="#1f2937" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.floatingButton}
+            onPress={() => setInitialView(initialView === 'topdown' ? 'oblique' : 'topdown')}
+          >
+            <Ionicons name={initialView === 'topdown' ? 'cube-outline' : 'map-outline'} size={24} color="#1f2937" />
+          </TouchableOpacity>
+        </View>
+
         <MapWeb
-          center={campusCenter}
+          center={center}
           buildings={visibleBuildings}
           selectedBuildingId={selectedBuildingId}
-          pitch={selectedBuildingId ? 65 : 0}
+          pitch={pitch}
+          bearing={bearing}
+          zoom={zoom}
+          maskOutside={maskOutside}
+          userLocation={userLocation}
+          userHeading={userHeading}
+          followUser={followUser}
+          isFirstPerson={isFirstPerson}
         />
+        
+        {isMobile && !isFirstPerson && (
+          <MapNavbar
+            initialView={initialView}
+            onChangeInitialView={setInitialView}
+            pitchValue={pitch}
+            onChangePitch={setPitch}
+            bearingValue={bearing}
+            onChangeBearing={setBearing}
+            arrowColor={arrowColor}
+            onChangeArrowColor={setArrowColor}
+            maskOutside={maskOutside}
+            onToggleMaskOutside={setMaskOutside}
+            categories={allCategories}
+            categoryVisibility={categoryVisibility}
+            onToggleCategory={toggleCategory}
+          />
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: 'row', // Layout horizontal para PC
+  container: { backgroundColor: '#fff', flexDirection: 'row', overflow: 'hidden' },
+  mapArea: { flex: 1, height: '100%', position: 'relative' },
+  floatingControls: { position: 'absolute', right: 12, top: '20%', zIndex: 1000, gap: 10 },
+  floatingButton: {
+    width: 48, height: 48, backgroundColor: '#fff', borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 5
   },
-  mapArea: {
-    flex: 1,
-  },
+  buttonActive: { backgroundColor: '#2563eb' }
 });

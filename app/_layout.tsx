@@ -35,11 +35,7 @@ export default function RootLayout() {
     <ThemeProvider value={theme}>
       {/* Si NO usas (tabs), deja un Stack simple */}
       <Stack screenOptions={{ headerShown: false }}>
-        {/* No es obligatorio declarar cada pantalla; Expo Router las detecta por archivos */}
-        {/* <Stack.Screen name="index" /> */}
-        {/* <Stack.Screen name="map" /> */}
-        {/* <Stack.Screen name="departments" /> */}
-        {/* <Stack.Screen name="+not-found" /> */}
+        <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>

@@ -1,208 +1,231 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
+import { View, StyleSheet, Text } from 'react-native';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as turf from '@turf/turf';
 import { BuildingDef } from './buildings/types';
 import { ITO_CAMPUS_FC } from './buildings/ito-campus-mask';
+import { getBasemapStyle, type Basemap } from '@/constants/mapStyles';
 
 interface MapWebProps {
   center: { lng: number; lat: number };
   buildings: BuildingDef[];
   pitch?: number;
   bearing?: number;
+  zoom?: number;
+  basemap?: Basemap;
+  showLabels?: boolean;
   maskOutside?: boolean;
-  arrowColor?: string;
   selectedBuildingId?: string | null;
+  userLocation?: { lng: number; lat: number } | null;
+  userHeading?: number;
+  followUser?: boolean;
+  isFirstPerson?: boolean;
   onMapReady?: (map: maplibregl.Map) => void;
 }
 
 export default function MapWeb({
-  center,
-  buildings,
-  pitch = 0,
-  bearing = 0,
-  maskOutside = false,
-  arrowColor = '#2563eb',
-  selectedBuildingId = null,
-  onMapReady,
+  center, buildings, pitch = 0, bearing = 0, zoom = 17,
+  basemap = 'voyager', showLabels = true, maskOutside = false,
+  selectedBuildingId = null, userLocation = null, userHeading = 0,
+  followUser = false, isFirstPerson = false, onMapReady,
 }: MapWebProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const playerMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const lastSafeCenter = useRef<[number, number]>([center.lng, center.lat]);
+  const isInternalMove = useRef(false);
+  const [isStyleLoaded, setIsStyleLoaded] = useState(false);
 
-  // ... (useMemo campusNorm y campusUnion siguen igual)
-  const campusNorm = useMemo(() => {
-    const fc = ITO_CAMPUS_FC;
-    if (!fc || !Array.isArray(fc.features)) return fc;
-    return {
-      type: 'FeatureCollection',
-      features: fc.features.map((f: any) => ({
-        ...f,
-        geometry: f.geometry.type === 'Polygon' 
-          ? { ...f.geometry, coordinates: f.geometry.coordinates.map((r: any) => [...r]) }
-          : f.geometry
-      }))
-    };
-  }, []);
+  const styleJSON = useMemo(() => getBasemapStyle(basemap, { labels: showLabels }), [basemap, showLabels]);
 
-  const campusUnion = useMemo(() => {
-    const feats = (campusNorm.features || []).filter((f: any) => f && f.geometry);
-    if (!feats.length) return null;
-    let u = feats[0];
-    for (let i = 1; i < feats.length; i++) {
-      try {
-        u = turf.union(u, feats[i]) || u;
-      } catch (e) {}
-    }
-    return u;
-  }, [campusNorm]);
-
-  // NUEVO: Efecto para volar al edificio seleccionado
-  useEffect(() => {
-    if (mapRef.current && selectedBuildingId) {
-      const b = buildings.find(b => b.id === selectedBuildingId);
-      if (b && b.polygon && b.polygon.length > 0) {
-        // Calcular centro del polígono para el vuelo
-        const coords = b.polygon.map(p => [p[0], p[1]]);
-        // Asegurar que el anillo esté cerrado para turf.polygon
-        if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
-          coords.push(coords[0]);
-        }
-        
-        const poly = turf.polygon([coords]);
-        const center = turf.centerOfMass(poly);
-        const [lng, lat] = center.geometry.coordinates;
-        
-        mapRef.current.flyTo({
-          center: [lng, lat] as [number, number],
-          zoom: 19,
-          pitch: 65,
-          duration: 2000,
-          essential: true
-        });
+  const buildingPolygons = useMemo(() => {
+    return buildings.map(b => {
+      if (!b.polygon || b.polygon.length < 3) return null;
+      const coords = b.polygon.map(p => [p[0], p[1]]);
+      if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
+        coords.push(coords[0]);
       }
-    }
-  }, [selectedBuildingId, buildings]);
+      return { id: b.id, poly: turf.polygon([coords]) };
+    }).filter(Boolean);
+  }, [buildings]);
 
-  // Inicializar el mapa
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          'osm': {
-            type: 'raster',
-            tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '&copy; OpenStreetMap contributors'
-          }
-        },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-      },
+      style: styleJSON,
       center: [center.lng, center.lat],
-      zoom: 17,
-      pitch,
+      zoom: isFirstPerson ? 22.5 : zoom,
+      pitch: isFirstPerson ? 85 : pitch,
       bearing,
       maxPitch: 85,
+      antialias: true,
+      maxZoom: 24,
     });
 
-    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    map.on('style.load', () => {
+      setIsStyleLoaded(true);
+      if (!map.getSource('campus')) {
+        map.addSource('campus', { type: 'geojson', data: ITO_CAMPUS_FC as any });
+      }
+      renderBuildings(map, buildings);
+    });
 
     map.on('load', () => {
       mapRef.current = map;
       
-      // Añadir fuentes de edificios y campus
-      map.addSource('campus', { type: 'geojson', data: campusNorm });
+      const el = document.createElement('div');
+      el.style.width = '24px'; el.style.height = '24px';
+      el.style.borderRadius = '50%'; el.style.backgroundColor = '#2563eb';
+      el.style.border = '3px solid white';
+      el.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+      el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.justifyContent = 'center';
       
-      if (maskOutside) {
-        map.addLayer({
-          id: 'mask-campus-fill',
-          type: 'fill',
-          source: 'campus',
-          paint: { 'fill-color': '#F4F1EA', 'fill-opacity': 1.0 },
-        });
-      }
+      const arrow = document.createElement('div');
+      arrow.style.width = '0'; arrow.style.height = '0';
+      arrow.style.borderLeft = '6px solid transparent';
+      arrow.style.borderRight = '6px solid transparent';
+      arrow.style.borderBottom = '10px solid white';
+      arrow.style.marginTop = '-4px';
+      el.appendChild(arrow);
+      
+      playerMarkerRef.current = new maplibregl.Marker({ element: el })
+        .setLngLat([center.lng, center.lat])
+        .addTo(map);
 
-      updateBuildingsLayer(map, buildings);
-      
+      renderBuildings(map, buildings);
+
+      // --- MOTOR DE FÍSICAS (SIN RECURSIÓN) ---
+      map.on('move', () => {
+        if (isInternalMove.current) return;
+
+        const currentCenter = map.getCenter();
+        
+        if (!isFirstPerson) {
+          lastSafeCenter.current = [currentCenter.lng, currentCenter.lat];
+          return;
+        }
+
+        const point = turf.point([currentCenter.lng, currentCenter.lat]);
+        let isColliding = false;
+        
+        for (const b of (buildingPolygons as any[])) {
+          if (b && turf.booleanPointInPolygon(point, b.poly)) {
+            isColliding = true;
+            break;
+          }
+        }
+
+        if (isColliding) {
+          isInternalMove.current = true;
+          map.jumpTo({ center: lastSafeCenter.current });
+          isInternalMove.current = false;
+        } else {
+          lastSafeCenter.current = [currentCenter.lng, currentCenter.lat];
+        }
+      });
+
       if (onMapReady) onMapReady(map);
     });
 
-    return () => {
-      map.remove();
-    };
-  }, []);
+    return () => { if (mapRef.current) mapRef.current.remove(); };
+  }, [isFirstPerson, buildings]); // Escuchar cambios en modo y edificios para re-bind de colisiones
 
-  // Actualizar edificios cuando cambien las categorías
+  // Sincronización de Edificios
   useEffect(() => {
-    if (mapRef.current && mapRef.current.isStyleLoaded()) {
-      updateBuildingsLayer(mapRef.current, buildings);
+    const map = mapRef.current;
+    if (map && isStyleLoaded) {
+      renderBuildings(map, buildings);
     }
-  }, [buildings]);
+  }, [buildings, isStyleLoaded]);
 
-  // Actualizar Pitch/Bearing reactivamente
+  // Sincronización de Estilo
   useEffect(() => {
-    if (mapRef.current) {
-      mapRef.current.easeTo({ pitch, bearing, duration: 200 });
+    const map = mapRef.current;
+    if (map) {
+      setIsStyleLoaded(false);
+      map.setStyle(styleJSON);
     }
-  }, [pitch, bearing]);
+  }, [styleJSON]);
 
-  const updateBuildingsLayer = (map: maplibregl.Map, defs: BuildingDef[]) => {
-    const fcBuild: any = { type: 'FeatureCollection', features: [] };
-
-    for (const b of defs) {
-      if (!b.polygon || !b.polygon.length) continue;
-      
-      const feat: any = {
-        type: 'Feature',
-        properties: {
-          id: b.id,
-          name: b.name,
-          height: b.height || (b.levels ? b.levels * 3.5 : 4),
-          base: b.base || 0,
-          color: b.color || '#9ca3af',
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [b.polygon.map(p => [p[0], p[1]])]
-        }
+  // Cámara Fluida
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map && isStyleLoaded) {
+      const options: any = { 
+        pitch: isFirstPerson ? 85 : pitch, 
+        bearing, 
+        zoom: isFirstPerson ? 22.5 : zoom, 
+        duration: 1200,
+        easing: (t: number) => t * (2 - t)
       };
-      fcBuild.features.push(feat);
+      if (followUser && userLocation) {
+        options.center = [userLocation.lng, userLocation.lat];
+      }
+      map.easeTo(options);
     }
+  }, [pitch, bearing, zoom, isFirstPerson, followUser, isStyleLoaded]);
+
+  // GPS y Rotación
+  useEffect(() => {
+    if (playerMarkerRef.current && userLocation) {
+      playerMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
+      if (followUser && mapRef.current && isStyleLoaded) {
+        mapRef.current.easeTo({ 
+          center: [userLocation.lng, userLocation.lat], 
+          duration: 800,
+          zoom: isFirstPerson ? 22.5 : mapRef.current.getZoom()
+        });
+      }
+    }
+  }, [userLocation, followUser, isStyleLoaded, isFirstPerson]);
+
+  useEffect(() => {
+    if (playerMarkerRef.current && userHeading !== undefined) {
+      playerMarkerRef.current.getElement().style.transform = `rotate(${userHeading}deg)`;
+      if (isFirstPerson && followUser && mapRef.current) {
+        mapRef.current.setBearing(userHeading);
+      }
+    }
+  }, [userHeading, isFirstPerson, followUser]);
+
+  function renderBuildings(map: maplibregl.Map, defs: BuildingDef[]) {
+    if (!map.isStyleLoaded()) return;
+    const fc: any = { type: 'FeatureCollection', features: defs.map(b => ({
+      type: 'Feature',
+      properties: {
+        id: b.id, name: b.name,
+        height: b.height || (b.levels ? b.levels * 3.5 : 4),
+        base: b.base || 0, color: b.color || '#9ca3af',
+      },
+      geometry: { type: 'Polygon', coordinates: [b.polygon.map(p => [p[0], p[1]]).concat([b.polygon[0]])] }
+    }))};
 
     if (map.getSource('custom-buildings')) {
-      (map.getSource('custom-buildings') as maplibregl.GeoJSONSource).setData(fcBuild);
+      (map.getSource('custom-buildings') as maplibregl.GeoJSONSource).setData(fc);
     } else {
-      map.addSource('custom-buildings', { type: 'geojson', data: fcBuild });
+      map.addSource('custom-buildings', { type: 'geojson', data: fc });
       map.addLayer({
-        id: 'custom-3d',
-        type: 'fill-extrusion',
-        source: 'custom-buildings',
+        id: 'custom-3d', type: 'fill-extrusion', source: 'custom-buildings',
         paint: {
           'fill-extrusion-color': ['get', 'color'],
-          'fill-extrusion-opacity': 0.9,
+          'fill-extrusion-opacity': 0.98,
           'fill-extrusion-height': ['get', 'height'],
           'fill-extrusion-base': ['get', 'base'],
         }
       });
     }
-  };
+  }
 
   return (
     <View style={styles.container}>
-      <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      <div ref={mapContainerRef} style={{ width: '100%', height: '100%', position: 'relative' }} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1, width: '100%', height: '100%', backgroundColor: '#f3f4f6' }
 });

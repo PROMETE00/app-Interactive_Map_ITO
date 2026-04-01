@@ -190,6 +190,14 @@ DEPIPosgrado,
 CubiculosMaestros,
 ] satisfies BuildingDef[]);
 
+// ==== Grupos de Categorías para UI ====
+export const categoryGroups = {
+  Academico: ['Aulas', 'Laboratorios', 'Audiovisuales', 'PosgradoBuildings', 'Maestrias'] as BuildingCategory[],
+  Administrativo: ['Departamentos', 'Escolares', 'TitulacionBuilding', 'AsesoriasBuilding'] as BuildingCategory[],
+  Servicios: ['Comida', 'BibliotecaBuilding', 'GimnasioBuilding', 'BannosBuilding', 'ServiciosMedicosBuilding', 'otherBuildings'] as BuildingCategory[],
+  General: ['AreasVerdes'] as BuildingCategory[],
+};
+
 // ==== Catálogo, tipos y utilidades de visibilidad ====
 export const buildingCatalog = {
   Aulas,
@@ -222,20 +230,12 @@ export function mergeBuildings(
   const out: BuildingDef[] = [];
 
   (Object.keys(buildingCatalog) as BuildingCategory[]).forEach(cat => {
-    if (!visibility[cat]) return;
+    if (visibility[cat] === false) return; // Si explícitamente es false, saltar
     for (const b of buildingCatalog[cat]) {
       const prev = seen.get(b.id);
       if (!prev) {
         seen.set(b.id, { cat, b });
         out.push(b);
-      } else {
-        // No rompas la app, solo avisa; conserva la primera ocurrencia
-        if (typeof console !== 'undefined') {
-          console.warn(
-            `[buildings] Duplicado "${b.id}" en categoría "${cat}" (ya estaba en "${prev.cat}"). ` +
-            `Se conservará la primera ocurrencia.`
-          );
-        }
       }
     }
   });
